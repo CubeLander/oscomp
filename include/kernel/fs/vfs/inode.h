@@ -132,7 +132,10 @@ struct inode {
 	unsigned long i_state; /* Inode state flags */
 
 	/* File system specific data */
-	void* i_fs_info; /* Filesystem-specific data */
+	union{
+		void* i_fs_info; /* Filesystem-specific data */
+		void* i_private; /* FUSE uses this */
+	};
 
 	/* Dentry management */
 	struct list_head i_dentryList; /* List of dentries for this inode */

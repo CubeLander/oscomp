@@ -49,6 +49,10 @@ typedef int bool;
 #define false 0
 #endif
 
+#define ERR_PTR(err) ((void *)((intptr_t)(err)))
+#define PTR_ERR(ptr) ((intptr_t)(ptr))          // 从“错误指针”提取出原始错误码
+#define IS_ERR(ptr)  ((uintptr_t)(ptr) > (uintptr_t)-4096)  // 判断一个指针是不是“错误指针”
+
 // 方便的宏定义
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -214,5 +218,17 @@ typedef uint32 fmode_t;
 /* File permission and type bits */
 typedef unsigned short umode_t;
 
+
+/*fstype.h*/
+/* Filesystem type flags */
+#define FS_REQUIRES_DEV 0x01       /* Filesystem requires a block device */
+#define FS_BINARY_MOUNTDATA 0x02   /* Binary mount data instead of text */
+#define FS_HAS_SUBTYPE 0x04        /* Subtype field valid */
+#define FS_USERNS_MOUNT 0x08       /* Can be mounted in userns */
+#define FS_RENAME_DOES_D_MOVE 0x20 /* FS will handle d_move in rename */
+
+/* Capability flags */
+#define FS_CAP_CASE_INSENSITIVE 1
+#define FS_CAP_ATOMIC_RENAME 2
 
 #endif

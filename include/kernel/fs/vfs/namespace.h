@@ -15,6 +15,7 @@ struct path;
 #define MNT_NOSUID 2              /* Ignore suid and sgid bits */
 #define MNT_NODEV 4               /* Disallow access to device special files */
 #define MNT_NOEXEC 8              /* Disallow program execution */
+#define MNT_SILENT    32       /* Suppress error messages */
 #define MNT_RELATIME (1 << 21)    /* Update atime relative to mtime/ctime */
 #define MNT_STRICTATIME (1 << 29) /* Always perform atime updates */
 

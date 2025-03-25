@@ -7,6 +7,28 @@ static struct list_head file_systems_list;
 static spinlock_t file_systems_lock;
 
 static int __lookup_dev_id(const char* dev_name, dev_t* dev_id);
+static void __fsType_init(void);
+
+
+
+static void __fsType_init(void) {
+	spinlock_init(&file_systems_lock);
+	INIT_LIST_HEAD(&file_systems_list);
+}
+
+int fsType_register_all(void) {
+	__fsType_init();
+	int ret;
+	struct fsType* fs;
+	extern struct fsType hostfs_fsType;
+	ret = fsType_register(&hostfs_fsType);
+	if (ret != 0) {
+		sprint("VFS: Failed to register filesystem %s: %d\n", fs->fs_name, ret);
+		return ret;
+	}
+
+	return ret;
+}
 
 /**
  * fsType_createMount - Mount a filesystem
@@ -46,7 +68,7 @@ struct superblock* fsType_createMount(struct fsType* type, int flags, const char
 	if (sb->s_global_root_dentry == NULL) {
 		/* Call fs_fill_sb if available */
 		if (type->fs_fill_sb) {
-			error = fsType_fill_sb(type, sb, data, flags);
+			error = type->fs_fill_sb(sb, data, flags);
 			if (error) {
 				drop_super(sb);
 				return ERR_PTR(error);
@@ -56,7 +78,7 @@ struct superblock* fsType_createMount(struct fsType* type, int flags, const char
 		else if (type->fs_mount_sb) {
 			/* This is a fallback - ideally all filesystems would
 			 * implement fs_fill_sb instead */
-			struct superblock* new_sb = fsType_mount_sb(type, flags, mount_path, data);
+			struct superblock* new_sb = type->fs_mount_sb(type, flags, mount_path, data);
 			if (IS_ERR(new_sb)) {
 				drop_super(sb);
 				return new_sb;
@@ -73,7 +95,6 @@ struct superblock* fsType_createMount(struct fsType* type, int flags, const char
 
 	return sb;
 }
-
 
 /**
  * fsType_acquireSuperblock - Get or create a superblock
@@ -130,38 +151,8 @@ struct superblock* fsType_acquireSuperblock(struct fsType* type, dev_t dev_id, v
 	return sb;
 }
 
-/**
- * Register built-in filesystem types
- * called by vfs_init
- */
-int fsType_register_all(void) {
-	INIT_LIST_HEAD(&file_systems_list);
-	spinlock_init(&file_systems_lock);
-	int err;
-	/* Register ramfs - our initial root filesystem */
-	extern struct fsType ramfs_fsType;
-	err = fsType_register(&ramfs_fsType);
-	if (err < 0)
-		return err;
-
-	/* Register other built-in filesystems */
-	extern struct fsType hostfs_fsType;
-	err = fsType_register(&hostfs_fsType);
-	if (err < 0)
-		return err;
-
-	return 0;
-}
-
-/**
- * fsType_register - Register a new filesystem type
- * @fs: The filesystem type structure to register
- *
- * Adds a filesystem to the kernel's list of filesystems that can be mounted.
- * Returns 0 on success, error code on failure.
- * fs是下层文件系统静态定义的，所以不需要分配内存
- */
 int fsType_register(struct fsType* fs) {
+	int ret = 0;
 	struct fsType* p;
 
 	if (!fs || !fs->fs_name)
@@ -170,29 +161,101 @@ int fsType_register(struct fsType* fs) {
 	/* Initialize filesystem type */
 	INIT_LIST_HEAD(&fs->fs_globalFsListNode);
 	INIT_LIST_HEAD(&fs->fs_list_sb);
-
-	/* Acquire lock for list manipulation */
-	spinlock_init(&file_systems_lock);
+	spinlock_init(&fs->fs_list_s_lock);
 
 	/* Check if filesystem already registered */
+	acquire_spinlock(&file_systems_lock);
 	list_for_each_entry(p, &file_systems_list, fs_globalFsListNode) {
 		if (strcmp(p->fs_name, fs->fs_name) == 0) {
-			/* Already registered */
 			release_spinlock(&file_systems_lock);
 			sprint("VFS: Filesystem %s already registered\n", fs->fs_name);
 			return -EBUSY;
 		}
 	}
+	release_spinlock(&file_systems_lock);
 
-	/* Add filesystem to the list (at the beginning for simplicity) */
+	/* Call filesystem-specific registration if provided */
+	if (fs->fs_register) {
+		ret = fs->fs_register(fs);
+		if (ret != 0) {
+			sprint("VFS: %s registration failed: %d\n", fs->fs_name, ret);
+			return ret;
+		}
+	}
+
+	/* Add filesystem to the list */
+	acquire_spinlock(&file_systems_lock);
 	list_add(&fs->fs_globalFsListNode, &file_systems_list);
+	release_spinlock(&file_systems_lock);
 
-	spinlock_unlock(&file_systems_lock);
+	/* Call filesystem initialization */
+	if (fs->fs_init) {
+		ret = fs->fs_init();
+		if (ret != 0) {
+			/* Initialization failed, remove from list */
+			acquire_spinlock(&file_systems_lock);
+			list_del(&fs->fs_globalFsListNode);
+			release_spinlock(&file_systems_lock);
+
+			/* Call unregister to clean up */
+			if (fs->fs_unregister)
+				fs->fs_unregister(fs);
+
+			sprint("VFS: %s initialization failed: %d\n", fs->fs_name, ret);
+			return ret;
+		}
+	}
+
 	sprint("VFS: Registered filesystem %s\n", fs->fs_name);
 	return 0;
 }
 
+int fsType_unregister(struct fsType* fs) {
+	int ret = 0;
+	struct fsType* p;
+	bool found = false;
 
+	if (!fs || !fs->fs_name)
+		return -EINVAL;
+
+	/* Check if filesystem has mounted instances */
+	if (!list_empty(&fs->fs_list_sb)) {
+		sprint("VFS: Cannot unregister %s - has mounted instances\n", fs->fs_name);
+		return -EBUSY;
+	}
+
+	/* Call filesystem exit function if available */
+	if (fs->fs_exit)
+		fs->fs_exit();
+
+	/* Find and remove from global list */
+	acquire_spinlock(&file_systems_lock);
+	list_for_each_entry(p, &file_systems_list, fs_globalFsListNode) {
+		if (p == fs) {
+			list_del(&p->fs_globalFsListNode);
+			found = true;
+			break;
+		}
+	}
+	release_spinlock(&file_systems_lock);
+
+	if (!found) {
+		sprint("VFS: Filesystem %s not registered\n", fs->fs_name);
+		return -ENOENT;
+	}
+
+	/* Call filesystem-specific unregistration if provided */
+	if (fs->fs_unregister) {
+		ret = fs->fs_unregister(fs);
+		if (ret != 0) {
+			sprint("VFS: %s unregistration failed: %d\n", fs->fs_name, ret);
+			/* Continue anyway - filesystem is already removed from list */
+		}
+	}
+
+	sprint("VFS: Unregistered filesystem %s\n", fs->fs_name);
+	return 0;
+}
 /**
  * fsType_unregister - Remove a filesystem type from the kernel's list
  * @fs: The filesystem type structure to unregister
@@ -251,7 +314,6 @@ struct fsType* fsType_lookup(const char* name) {
 	return NULL;
 }
 
-
 /**
  * lookup_dev_id - Get device ID from device name
  * @dev_name: Name of the device
@@ -277,12 +339,11 @@ static int __lookup_dev_id(const char* dev_name, dev_t* dev_id) {
 	return 0;
 }
 
-const char *fsType_error_string(int error_code) {
-    if (error_code >= 0 || -error_code >= ARRAY_SIZE(fs_err_msgs))
-        return "Unknown error";
-    return fs_err_msgs[-error_code];
+const char* fsType_error_string(int error_code) {
+	if (error_code >= 0 || -error_code >= ARRAY_SIZE(fs_err_msgs))
+		return "Unknown error";
+	return fs_err_msgs[-error_code];
 }
-
 
 /* Add to fstype.c */
 const char* fs_err_msgs[] = {

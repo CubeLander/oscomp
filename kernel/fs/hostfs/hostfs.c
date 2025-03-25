@@ -10,15 +10,8 @@
 #include <kernel/types.h>
 #include <kernel/fs/vfs/vfs.h>
 
-struct fsType hostfs_fsType = {
-	.fs_name = "hostfs",
-	.fs_flags = 0,
-	.fs_fill_sb = hostfs_fill_super,
-	.fs_mount_sb = hostfs_mount,
-	.fs_kill_sb = hostfs_kill_super,
-	.fs_init = hostfs_init,
-	.fs_exit = hostfs_exit,
-};
+
+
 
 
 /**** host-fs vinode interface ****/
@@ -42,23 +35,6 @@ const struct inode_operations hostfs_i_ops = {
 };
 
 /**** hostfs utility functions ****/
-//
-// append hostfs to the fs list.
-//
-int register_hostfs() {
-  struct file_system_type *fs_type = kmalloc(sizeof(struct file_system_type));
-  fs_type->type_num = HOSTFS_TYPE;
-  fs_type->get_superblock = hostfs_get_superblock;
-
-  for (int i = 0; i < MAX_SUPPORTED_FS; i++) {
-    if (fs_list[i] == NULL) {
-      fs_list[i] = fs_type;
-      return 0;
-    }
-  }
-  return -1;
-}
-
 //
 // append new device under "name" to vfs_dev_list.
 //

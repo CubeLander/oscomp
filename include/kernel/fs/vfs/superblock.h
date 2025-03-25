@@ -98,6 +98,7 @@ struct statfs {
 struct super_operations {
 	/* Inode lifecycle management */
 	struct inode* (*alloc_inode)(struct superblock* sb);
+	// 与inode_create对应，负责fs特定的空间分配
 	void (*destroy_inode)(struct inode* inode);
 	void (*dirty_inode)(struct inode* inode);
 

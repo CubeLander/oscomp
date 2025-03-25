@@ -3,9 +3,14 @@
 #include <kernel/fs/vfs/vfs.h>
 
 #define HOSTFS_TYPE 1
+#define HOSTFS_MAGIC 0x19980122
 
 // root directory
 #define H_ROOT_DIR "./hostfs"
+
+extern struct fsType hostfs_fsType;
+extern struct super_operations hostfs_super_operations;
+extern struct inode_operations hostfs_i_ops;
 
 // hostfs utility functin declarations
 int register_hostfs();
