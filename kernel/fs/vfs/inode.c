@@ -22,7 +22,7 @@ struct hashtable inode_hashtable;
 struct inode_key{
 	struct superblock* sb;
 	unsigned long ino;
-}
+};
 
 
 
