@@ -1,7 +1,7 @@
 #ifndef _DENTRY_H
 #define _DENTRY_H
 
-#include <kernel/fs/vfs.h>
+#include <kernel/fs/vfs/vfs.h>
 #include <kernel/types.h>
 #include <util/atomic.h>
 #include <util/list.h>

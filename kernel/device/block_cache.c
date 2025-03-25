@@ -1,4 +1,4 @@
-#include <kernel/fs/block_device.h>
+#include <kernel/fs/vfs/block_device.h>
 #include <kernel/mm/kmalloc.h>
 #include <util/string.h>
 #include <spike_interface/spike_utils.h>

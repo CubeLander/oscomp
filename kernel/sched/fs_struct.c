@@ -1,6 +1,6 @@
 #include <kernel/sched/fs_struct.h>
-#include <kernel/fs/namespace.h>
-#include <kernel/fs/vfs.h>
+#include <kernel/fs/vfs/namespace.h>
+#include <kernel/fs/vfs/vfs.h>
 #include <kernel/mm/kmalloc.h>
 #include <util/string.h>
 

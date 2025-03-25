@@ -1,7 +1,7 @@
 #ifndef INODE_H
 #define INODE_H
 
-//#include <kernel/fs/vfs.h>
+//#include <kernel/fs/vfs/vfs.h>
 #include <kernel/mm/vma.h>
 #include <kernel/types.h>
 #include <util/atomic.h>

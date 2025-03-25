@@ -1,6 +1,6 @@
 #ifndef _HOSTFS_H_
 #define _HOSTFS_H_
-#include <kernel/fs/vfs.h>
+#include <kernel/fs/vfs/vfs.h>
 
 #define HOSTFS_TYPE 1
 

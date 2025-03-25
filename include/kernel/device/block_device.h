@@ -4,7 +4,7 @@
 #include <kernel/types.h>
 #include <util/list.h>
 #include <util/spinlock.h>
-#include <kernel/fs/inode.h>
+#include <kernel/fs/vfs/inode.h>
 
 /* Block device structure */
 struct block_device {

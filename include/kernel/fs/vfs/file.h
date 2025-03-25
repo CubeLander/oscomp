@@ -1,7 +1,7 @@
 #ifndef _FILE_H
 #define _FILE_H
 
-#include <kernel/fs/vfs.h>
+#include <kernel/fs/vfs/vfs.h>
 #include <kernel/types.h>
 #include <util/atomic.h>
 #include <util/spinlock.h>

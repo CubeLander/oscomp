@@ -1,5 +1,5 @@
-#include <kernel/fs/dentry.h>
-#include <kernel/fs/inode.h>
+#include <kernel/fs/vfs/dentry.h>
+#include <kernel/fs/vfs/inode.h>
 #include <kernel/mm/kmalloc.h>
 #include <kernel/time.h>
 #include <util/hashtable.h>

@@ -1,17 +1,17 @@
 #ifndef _VFS_H_
 #define _VFS_H_
 
-#include <kernel/fs/dentry.h>
-#include <kernel/fs/file.h>
-#include <kernel/fs/inode.h>
-#include <kernel/fs/namespace.h>
-#include <kernel/fs/path.h>
-#include <kernel/fs/superblock.h>
-#include <kernel/fs/kiocb.h>
-#include <kernel/fs/io_vector.h>
-#include <kernel/fs/fstype.h>
-#include <kernel/fs/address_space.h>
-#include <kernel/fs/writeback.h>
+#include <kernel/fs/vfs/dentry.h>
+#include <kernel/fs/vfs/file.h>
+#include <kernel/fs/vfs/inode.h>
+#include <kernel/fs/vfs/namespace.h>
+#include <kernel/fs/vfs/path.h>
+#include <kernel/fs/vfs/superblock.h>
+#include <kernel/fs/vfs/kiocb.h>
+#include <kernel/fs/vfs/io_vector.h>
+#include <kernel/fs/vfs/fstype.h>
+#include <kernel/fs/vfs/address_space.h>
+#include <kernel/fs/vfs/writeback.h>
 
 #include <kernel/types.h>
 #include <util/list.h>

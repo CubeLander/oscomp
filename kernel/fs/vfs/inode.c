@@ -1,5 +1,5 @@
 #include <kernel/types.h>
-#include <kernel/fs/vfs.h>
+#include <kernel/fs/vfs/vfs.h>
 #include <kernel/mm/kmalloc.h>
 #include <kernel/sched/sched.h>
 #include <util/string.h>

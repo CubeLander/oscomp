@@ -2,7 +2,7 @@
 #define _KIOCB_H
 
 #include <kernel/types.h>
-#include <kernel/fs/file.h>
+#include <kernel/fs/vfs/file.h>
 
 /**
  * struct kiocb - Kernel I/O control block

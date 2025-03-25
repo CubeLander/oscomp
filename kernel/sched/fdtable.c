@@ -1,6 +1,6 @@
 #include <errno.h>
 #include <kernel/sched/fdtable.h>
-#include <kernel/fs/file.h>
+#include <kernel/fs/vfs/file.h>
 #include <kernel/mm/kmalloc.h>
 #include <sys/poll.h>
 #include <util/string.h>

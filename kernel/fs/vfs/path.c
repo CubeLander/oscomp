@@ -1,4 +1,4 @@
-#include <kernel/fs/vfs.h>
+#include <kernel/fs/vfs/vfs.h>
 #include <kernel/types.h>
 
 #include <kernel/sched/process.h>

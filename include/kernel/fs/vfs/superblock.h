@@ -1,6 +1,6 @@
 #ifndef _SUPERBLOCK_H
 #define _SUPERBLOCK_H
-//#include <kernel/fs/fstype.h>
+//#include <kernel/fs/vfs/fstype.h>
 #include <kernel/types.h>
 #include <util/list.h>
 #include <util/spinlock.h>

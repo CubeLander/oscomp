@@ -3,7 +3,7 @@
 #include <kernel/types.h>
 #include <util/radix_tree.h>
 #include <util/spinlock.h>
-#include <kernel/fs/vfs.h>
+#include <kernel/fs/vfs/vfs.h>
 
 int __addrSpace_writeback(struct addrSpace *mapping, struct writeback_control *wbc);
 static void __init_writeback_control(struct writeback_control *wbc, unsigned int sync_mode);

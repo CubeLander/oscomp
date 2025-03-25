@@ -6,7 +6,7 @@
 
 #include <kernel/elf.h>
 
-#include <kernel/fs/vfs.h>
+#include <kernel/fs/vfs/vfs.h>
 #include <kernel/mm/kmalloc.h>
 #include <kernel/mm/mm_struct.h>
 #include <kernel/mm/mmap.h>
