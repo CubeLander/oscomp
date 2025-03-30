@@ -1,8 +1,8 @@
 #ifndef _FILE_H
 #define _FILE_H
 
-#include <kernel/fs/vfs/path.h>
 #include "forward_declarations.h"
+#include <kernel/fs/vfs/path.h>
 #include <kernel/util/atomic.h>
 #include <kernel/util/spinlock.h>
 #include <kernel/vfs.h>
@@ -22,36 +22,16 @@ struct file {
 	struct inode* f_inode; /* Inode of the file */
 
 	/* File state */
-	fmode_t f_mode;       /* File access mode */
-	loff_t f_pos;         /* Current file position */
+	fmode_t f_mode; /* File access mode */
+	loff_t f_pos;   /* Current file position */
 	uint32 f_flags; /* Kernel internal flags */
-
-	/* Memory management */
-	// struct addrSpace* f_mapping; /* Page cache mapping */
-	//  直接在inode里边
-
-	/* Private data */
-	void* f_private; /* Filesystem/driver private data */
-
-	/* Data read-ahead */
-	struct file_ra_state {
-		uint64 start;      /* Current window start */
-		uint64 size;       /* Size of read-ahead window */
-		uint64 async_size; /* Async read-ahead size */
-		uint32 ra_pages;    /* Maximum pages to read ahead */
-		uint32 mmap_miss;   /* Cache miss stat for mmap */
-		uint32 prev_pos;
-	} f_read_ahead; /* Read-ahead state */
-
-	const struct file_operations* f_operations; /* File s_operations */
 };
 
 /**
  * Directory context for readdir operations
  */
 struct dir_context {
-	int32 (*actor)(struct dir_context*, const char*, int32, loff_t, uint64_t,
-		     unsigned);
+	int32 (*actor)(struct dir_context*, const char*, int32, loff_t, uint64_t, unsigned);
 	loff_t pos; /* Current position in directory */
 };
 
@@ -91,13 +71,12 @@ struct file_operations {
 	int32 (*fasync)(int32, struct file*, int32);
 
 	/* Splice s_operations */
-	//ssize_t (*splice_read)(struct file*, loff_t*, struct pipe_inode_info*, size_t, uint32);
-	//ssize_t (*splice_write)(struct pipe_inode_info*, struct file*, loff_t*, size_t, uint32);
+	// ssize_t (*splice_read)(struct file*, loff_t*, struct pipe_inode_info*, size_t, uint32);
+	// ssize_t (*splice_write)(struct pipe_inode_info*, struct file*, loff_t*, size_t, uint32);
 
 	/* Space allocation */
 	int64 (*fallocate)(struct file*, int32, loff_t, loff_t);
 };
-
 
 #define f_mapping f_inode->i_mapping
 #define f_dentry f_path.dentry
@@ -136,7 +115,6 @@ ssize_t file_writev(struct file* file, const struct io_vector* vec, uint64 vlen,
 
 int32 iterate_dir(struct file*, struct dir_context*);
 
-
 static inline bool file_isReadable(struct file* file) {
 	if (!file || !file->f_inode || atomic_read(&file->f_refcount) <= 0) return false;
 	return (file->f_mode & FMODE_READ) != 0;
@@ -154,14 +132,8 @@ static inline bool file_isWriteable(struct file* file) {
 #define READ_AHEAD_ASYNC_RATIO 2 /* 异步预读与同步预读的比例 */
 
 /* 特殊文件类型预读参数 */
-#define READ_AHEAD_PIPE         16      /* 管道预读大小 */
-#define READ_AHEAD_SOCKET       8       /* 套接字预读大小 */
-#define READ_AHEAD_TTY          4       /* 终端预读大小 */
-
-
-
-
-
-
+#define READ_AHEAD_PIPE 16  /* 管道预读大小 */
+#define READ_AHEAD_SOCKET 8 /* 套接字预读大小 */
+#define READ_AHEAD_TTY 4    /* 终端预读大小 */
 
 #endif /* _FILE_H */

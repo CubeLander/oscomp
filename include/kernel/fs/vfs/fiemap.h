@@ -1,6 +1,8 @@
 #ifndef _FIEMAP_H
 #define _FIEMAP_H
 #include "forward_declarations.h"
+// 用来支持对于文件在磁盘中的表示查询
+
 /* Structure for the fiemap extent information */
 struct fiemap_extent_info {
     uint32 fi_flags;         /* Flags for the current operation */

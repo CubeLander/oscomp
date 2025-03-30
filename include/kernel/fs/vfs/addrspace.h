@@ -6,6 +6,30 @@
 #include <kernel/util/spinlock.h>
 #include "forward_declarations.h"
 
+
+
+// 对于addrspace，不再关联inode，而是直接关联设备文件。
+// 它会有非常高的并发强度
+// 参考mar30:统一的缓存预读策略
+
+
+// struct monkey_buffer {
+//     持有一段连续的内核虚拟地址空间，直接kmalloc分配
+//     但是在一些dma设备里 会要求buffer与page对齐
+//     可以在分配时要求kmalloc这么做。
+//     uint64_t block_id;
+//     char *data;                    // 指向 page 中偏移的 buffer
+//     bool uptodate, dirty;
+//     uint16_t offset_in_page;
+//     atomic_t refcount;
+//     struct list_head hashnode;
+//     ...
+//		spinlock_t lock;   // ✅ 每个 buffer 自带锁
+// };
+
+
+
+
 struct inode;
 struct writeback_control;
 /* Memory management */

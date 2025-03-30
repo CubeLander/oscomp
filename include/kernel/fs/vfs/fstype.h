@@ -21,15 +21,11 @@ struct fstype {
 	// 这个虚函数在架构中等效于__fstype_allocSuperblock
 	// called by vfs_kern_mount->fstype_mount
 
-	void (*fs_kill_sb)(struct superblock*);
+	void (*fs_unmount)(struct superblock*);
 
 	int32 (*fs_init)(void); /* Called during registration */
 	void (*fs_exit)(void);  /* Called during unregistration */
 };
-
-#define fstype_kill_sb(type, sb) ((type)->fs_kill_sb ? (type)->fs_kill_sb(sb) : (void)0)
-#define fstype_init(type) ((type)->fs_init ? (type)->fs_init() : 0)
-#define fstype_exit(type) ((type)->fs_exit ? (type)->fs_exit() : (void)0)
 
 // int32 parse_mount_options(const char* options, struct fs_mount_context* parsed);
 

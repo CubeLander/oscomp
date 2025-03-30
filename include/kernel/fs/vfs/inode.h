@@ -54,20 +54,17 @@ struct inode {
 	uid_t i_uid;    /* Owner user ID */
 	gid_t i_gid;    /* Owner group ID */
 	uint64 i_ino;   /* Inode number */
+
 	dev_t i_rdev;   /* Device number (for special files) */
 
 	/* File attributes */
 	loff_t i_size; /* File size in bytes */
-	// Replace existing timestamp fields with nanosecond precision
 	struct timespec i_atime; /* Last access time */
 	struct timespec i_mtime; /* Last modification time */
 	struct timespec i_ctime; /* Last status change time */
 	struct timespec i_btime; /* Creation time (birth time) */
 	uint32 i_nlink;          /* Number of hard links */
 	blkcnt_t i_blocks;       /* Number of blocks allocated */
-
-	/* Memory management */
-	struct addrSpace* i_mapping; /* Associated address space */
 
 	/* Filesystem information */
 	struct superblock* i_superblock;    /* Superblock */
@@ -79,7 +76,6 @@ struct inode {
 
 	/* Operations */
 	const struct inode_operations* i_op; /* Inode operations */
-	const struct file_operations* i_fop; /* Default file operations */
 
 	/* Reference counting and locking */
 	atomic_t i_refcount;  /* Reference count */
@@ -98,14 +94,10 @@ struct inode {
 	spinlock_t i_dentryList_lock;
 
 	/* Block mapping */
-	sector_t* i_data; /* Block mapping array */
-	// // Quota fields
-	// struct quota_info {
-	//     spinlock_t dq_lock;
-	//     struct dquot *dq_user;     /* User quota */
-	//     struct dquot *dq_group;    /* Group quota */
-	//     struct dquot *dq_project;  /* Project quota */
-	// } i_quota;
+	// 元数据块
+	sector_t i_meta_block;    // 元数据块在 blockdev 上的位置
+	// 从元块解析数据块的过程是fs相关的。
+	blkcnt_t i_blocks;        // 总共占用了多少数据块（不含元块）
 };
 
 struct inode_operations {

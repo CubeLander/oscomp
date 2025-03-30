@@ -14,41 +14,27 @@ struct iattr;
  * (directory or file name) is represented by a dentry.
  */
 struct dentry {
-	spinlock_t d_lock;   /* Protects dentry fields */
-	atomic_t d_refcount; /* Reference count */
+	spinlock_t d_lock;
+	// 需要优化为读写锁
+	atomic_t d_refcount;
 
-	/* RCU lookup touched fields */
-	uint32 d_flags;        /* Dentry flags */
-	struct inode* d_inode; /* Associated inode */
+	uint32 d_flags;
+	struct inode* d_inode;
 
-	/* Lookup cache information */
-	struct qstr* d_name;         /* Name of this dentry */
-	struct list_node d_hashNode; /* Lookup hash list */
+	struct qstr* d_name;
+	struct list_node d_hashNode;
 
-	struct dentry* d_parent;           /* Parent dentry */
-	struct list_node d_parentListNode; /* Child entry in parent's list */
+	struct dentry* d_parent;
+	struct list_node d_parentListNode;
 
-	/* Linked list of child dentries */
-	struct list_head d_childList; /* Child dentries */
+	struct list_head d_childList;
 
-	/* Dentry usage management */
-
-	/* Filesystem and operations */
-	struct superblock* d_superblock; /* Superblock of file */
-
-	/* D-cache management */
-	uint64 d_time;  /* Revalidation time */
-	void* d_fsdata; /* Filesystem-specific data */
+	uint64 d_time;
+	// d_time 记录这条路径（dentry）最后一次被成功验证的时间戳。
 
 	struct list_node d_lruListNode;   /* 全局dentry的LRU链表，在引用计数归零时加入，便于复用 */
 	                                  /* 只在内存压力时释放*/
 	struct list_node d_inodeListNode; /* Inode 别名链表，用来维护硬链接 */
-
-	/* Mount management */
-	// int32 d_mounted;          /* Mount count */
-	// struct path* d_automount; /* Automount point */
-
-	const struct dentry_operations* d_operations; /* Dentry operations */
 };
 
 
@@ -98,32 +84,6 @@ int32 dentry_permission(struct dentry* dentry, int32 mask);
 //int32 dentry_getxattr(struct dentry* dentry, const char* name, void* value, size_t size);
 //int32 dentry_setxattr(struct dentry* dentry, const char* name, const void* value, size_t size, int32 flags);
 //int32 dentry_removexattr(struct dentry* dentry, const char* name);
-
-/*
- * Operations that can be specialized for a particular dentry
- */
-struct dentry_operations {
-	/* Called to determine if dentry is still valid - important for NFS etc */
-	int32 (*d_revalidate)(struct dentry*, uint32);
-
-	/* Called to hash the dentry name for dcache */
-	int32 (*d_hash)(const struct dentry*, struct qstr*);
-
-	/* Called for name comparisons */
-	int32 (*d_compare)(const struct dentry*, uint32, const char*, const struct qstr*);
-
-	/* Called when dentry's reference count reaches 0 */
-	int32 (*d_free)(const struct dentry*);
-
-	/* Called to release dentry's inode */
-	void (*d_inode_put)(struct dentry*, struct inode*);
-
-	/* Called to create the relative path of a dentry */
-	char* (*d_dname)(struct dentry*, char*, int32);
-
-	/* Called when a dentry is unhashed */
-	void (*d_prune)(struct dentry*);
-};
 
 /*
  * Dentry state flags
