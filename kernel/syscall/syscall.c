@@ -148,9 +148,19 @@ int64 sys_open(const char *pathname, int32 flags, mode_t mode) {
         kfree(kpathname);
         return -EFAULT;
     }
-    
-    /* Call internal implementation */
-    int32 ret = do_open(kpathname, flags, mode);
+	struct fcontext fctx = {
+		.fc_filename = kpathname,
+		.fc_path_remaining = kpathname,
+		.fc_fd = -1,
+		.fc_flags = flags,	// 操作行为
+		.fc_mode = mode,	// 创建权限
+		.fc_action = VFS_ACTION_OPEN,
+		.fc_task = current_task(),
+	};
+
+
+	int32 ret = vfs_monkey(&fctx);
+
     kfree(kpathname);
     return ret;
 }

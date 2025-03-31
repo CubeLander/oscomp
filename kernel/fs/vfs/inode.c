@@ -640,7 +640,6 @@ bool inode_isImmutable(struct inode* inode) {
 	return 0;
 }
 
-
 /**
  * inode_rmdir - Remove a directory
  * @dir: Parent directory's inode
@@ -665,7 +664,6 @@ int32 inode_rmdir(struct inode* dir, struct dentry* dentry) {
 	return dir->i_op->rmdir(dir, dentry);
 }
 
-
 /**
  * generic_permission - Check for access rights on a Unix-style file system
  * @inode: inode to check permissions on
@@ -677,32 +675,44 @@ int32 inode_rmdir(struct inode* dir, struct dentry* dentry) {
  * Returns 0 if access is allowed, -EACCES otherwise.
  */
 static int32 generic_permission(struct inode* inode, int32 mask) {
-    int32 mode = inode->i_mode;
-    int32 res = 0;
-    
-    /* Root can do anything */
-    if (current_task()->euid == 0) 
-        return 0;
-        
-    /* Nobody gets write access to a read-only filesystem */
-    if ((mask & MAY_WRITE) && inode_isReadonly(inode)) 
-        return -EROFS;
-        
-    /* Check if file is accessible by the user */
-    if (current_task()->euid == inode->i_uid) {
-        mode >>= 6; /* Use the user permissions */
-    } else if (current_group_matches(inode->i_gid)) {
-        mode >>= 3; /* Use the group permissions */
-    }
-    /* Otherwise we're already at "other" permissions */
-    
-    /* Check if the mask is allowed in the mode */
-    if ((mask & MAY_READ) && !(mode & 4))  /* 4 = read bit */
-        res = -EACCES;
-    if ((mask & MAY_WRITE) && !(mode & 2)) /* 2 = write bit */
-        res = -EACCES;
-    if ((mask & MAY_EXEC) && !(mode & 1))  /* 1 = execute bit */
-        res = -EACCES;
-        
-    return res;
+	int32 mode = inode->i_mode;
+	int32 res = 0;
+
+	/* Root can do anything */
+	if (current_task()->euid == 0) return 0;
+
+	/* Nobody gets write access to a read-only filesystem */
+	if ((mask & MAY_WRITE) && inode_isReadonly(inode)) return -EROFS;
+
+	/* Check if file is accessible by the user */
+	if (current_task()->euid == inode->i_uid) {
+		mode >>= 6; /* Use the user permissions */
+	} else if (current_group_matches(inode->i_gid)) {
+		mode >>= 3; /* Use the group permissions */
+	}
+	/* Otherwise we're already at "other" permissions */
+
+	/* Check if the mask is allowed in the mode */
+	if ((mask & MAY_READ) && !(mode & 4)) /* 4 = read bit */
+		res = -EACCES;
+	if ((mask & MAY_WRITE) && !(mode & 2)) /* 2 = write bit */
+		res = -EACCES;
+	if ((mask & MAY_EXEC) && !(mode & 1)) /* 1 = execute bit */
+		res = -EACCES;
+
+	return res;
+}
+
+int32 inode_monkey(struct fcontext* fctx) {
+	switch (fctx->fc_action) {
+	case VFS_ACTION_LOOKUP:
+		struct dentry* found = fctx->fc_inode->i_op->lookup(fctx->fc_inode, fctx->fc_sub_dentry,0);
+
+
+		/* code */
+		break;
+
+	default:
+		break;
+	}
 }

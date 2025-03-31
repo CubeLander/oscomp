@@ -52,27 +52,11 @@ struct dentry* dentry_acquire(struct dentry* parent, const struct qstr* name, in
 	struct dentry* dentry = NULL;
 	bool type_match = true;
 
-	unlikely_if (!parent || !name || !name->name) return ERR_PTR(-EINVAL);
-	unlikely_if(!dentry_isDir(parent)) return ERR_PTR(-ENOTDIR);
-	struct inode *dir_inode = parent->d_inode;
-	unlikely_if(!dir_inode) return ERR_PTR(-ENOENT);
-
-	/* 确保名称有哈希值 */
-	struct qstr tmp_name = *name;
-	if (!tmp_name.hash) tmp_name.hash = full_name_hash(tmp_name.name, tmp_name.len);
+	unlikely_if(!parent || !name || !name->name) return ERR_PTR(-EINVAL);
+	struct inode* dir_inode = parent->d_inode;
 
 	/* 1. 先尝试查找已有的dentry */
-	dentry = dentry_lookup(parent, &tmp_name);
-
-	/* 2. 如果找到但需要重新验证 */
-	if (dentry && revalidate && dentry->d_operations && dentry->d_operations->d_revalidate) {
-		if (!dentry->d_operations->d_revalidate(dentry, 0)) {
-			/* 验证失败，放弃此dentry */
-			dentry_unref(dentry);
-			dentry_unref(dentry);
-			dentry = NULL;
-		}
-	}
+	dentry = dentry_lookup(parent, &name);
 
 	/* 3. 如果找到，检查类型是否匹配 */
 	if (dentry && is_dir != -1) {
@@ -1179,21 +1163,20 @@ struct dentry* dentry_mkdir(struct dentry* parent, const char* name, fmode_t mod
 	struct qstr qname;
 	int32 error;
 
-	unlikely_if (!parent || !name || !*name) return ERR_PTR(-EINVAL);
-	unlikely_if (!dentry_isDir(parent)) return ERR_PTR(-ENOTDIR);
+	unlikely_if(!parent || !name || !*name) return ERR_PTR(-EINVAL);
+	unlikely_if(!dentry_isDir(parent)) return ERR_PTR(-ENOTDIR);
 
 	struct inode* dir_inode = parent->d_inode;
-	unlikely_if (!dir_inode) return ERR_PTR(-ENOENT);
+	unlikely_if(!dir_inode) return ERR_PTR(-ENOENT);
 
 	error = inode_permission(dir_inode, MAY_WRITE | MAY_EXEC);
-	unlikely_if (error) return ERR_PTR(error);
+	unlikely_if(error) return ERR_PTR(error);
 
-	unlikely_if (!dir_inode->i_op || !dir_inode->i_op->mkdir) return ERR_PTR(-EPERM);
-
+	unlikely_if(!dir_inode->i_op || !dir_inode->i_op->mkdir) return ERR_PTR(-EPERM);
 
 	/* Allocate new dentry */
 	dentry = dentry_acquireRaw(parent, name, 1, false, true);
-	unlikely_if (!dentry) return ERR_PTR(-ENOMEM);
+	unlikely_if(!dentry) return ERR_PTR(-ENOMEM);
 
 	/* Call filesystem-specific mkdir */
 	error = inode_mkdir(parent->d_inode, dentry, mode);
@@ -1206,33 +1189,6 @@ struct dentry* dentry_mkdir(struct dentry* parent, const char* name, fmode_t mod
 	/* Dentry reference count is already 1 from dentry_acquire */
 	return dentry;
 }
-
-/**
- * dentry_acquireRaw - Acquire a dentry using raw string filename
- * @parent: Parent directory dentry
- * @name: Name as raw C string
- * @is_dir: File type filter: -1 (any), 0 (file), 1 (dir)
- * @revalidate: Whether to revalidate found dentries
- * @alloc: Whether to allocate a new dentry if not found
- *
- * Wrapper around dentry_acquire that handles conversion from raw string to qstr.
- *
- * Returns: Matching dentry with reference count increased, or NULL if not found
- */
-struct dentry* dentry_acquireRaw(struct dentry* parent, const char* name, int32 is_dir, bool revalidate, bool alloc) {
-	struct qstr qname;
-
-	if (!parent || !name || !*name) return ERR_PTR(-EINVAL);
-
-	/* Create qstr from raw name */
-	qname.name = name;
-	qname.len = strlen(name);
-	qname.hash = full_name_hash(name, qname.len);
-
-	/* Use existing dentry_acquire function */
-	return dentry_acquire(parent, &qname, is_dir, revalidate, alloc);
-}
-
 /**
  * dentry_isEmptyDir - Check if a directory is empty
  * @dentry: The directory entry to check
@@ -1241,15 +1197,13 @@ struct dentry* dentry_acquireRaw(struct dentry* parent, const char* name, int32 
  * Returns false if the dentry is invalid, not a directory, or contains entries
  */
 bool dentry_isEmptyDir(struct dentry* dentry) {
-    // Verify the dentry is valid and is a directory
-    if (!dentry || !dentry_isDir(dentry))
-        return false;
-    
-    // Empty directories have no child entries in d_childList
-    // (note: "." and ".." special entries aren't included in d_childList)
-    return list_empty(&dentry->d_childList);
-}
+	// Verify the dentry is valid and is a directory
+	if (!dentry || !dentry_isDir(dentry)) return false;
 
+	// Empty directories have no child entries in d_childList
+	// (note: "." and ".." special entries aren't included in d_childList)
+	return list_empty(&dentry->d_childList);
+}
 
 /**
  * dentry_mknod - Create a special file with a given name in a directory
@@ -1263,51 +1217,45 @@ bool dentry_isEmptyDir(struct dentry* dentry) {
  * Returns: New dentry on success, ERR_PTR on failure
  */
 struct dentry* dentry_mknod(struct dentry* parent, const char* name, mode_t mode, dev_t dev) {
-    struct dentry* dentry;
-    int32 error;
+	struct dentry* dentry;
+	int32 error;
 
-    /* Validate parameters */
-    if (!parent || !parent->d_inode || !name || !*name)
-        return ERR_PTR(-EINVAL);
+	/* Validate parameters */
+	if (!parent || !parent->d_inode || !name || !*name) return ERR_PTR(-EINVAL);
 
-    /* Check if parent is a directory */
-    if (!dentry_isDir(parent))
-        return ERR_PTR(-ENOTDIR);
-    
-    /* Check permissions */
-    error = inode_permission(parent->d_inode, MAY_WRITE | MAY_EXEC);
-    if (error)
-        return ERR_PTR(error);
+	/* Check if parent is a directory */
+	if (!dentry_isDir(parent)) return ERR_PTR(-ENOTDIR);
 
-    /* Create a dentry for this name in the parent directory */
-    dentry = dentry_acquireRaw(parent, name, 0, false, true);
-    unlikely_if(!dentry)
-        return ERR_PTR(-ENOMEM);
+	/* Check permissions */
+	error = inode_permission(parent->d_inode, MAY_WRITE | MAY_EXEC);
+	if (error) return ERR_PTR(error);
 
-    /* Check if entry already exists */
-    if (dentry->d_inode) {
-        error = -EEXIST;
-        goto out;
-    }
+	/* Create a dentry for this name in the parent directory */
+	dentry = dentry_acquireRaw(parent, name, 0, false, true);
+	unlikely_if(!dentry) return ERR_PTR(-ENOMEM);
 
-    /* Call inode layer to create the node */
-    error = inode_mknod(parent->d_inode, dentry, mode, dev);
-    if (error)
-        goto out;
+	/* Check if entry already exists */
+	if (dentry->d_inode) {
+		error = -EEXIST;
+		goto out;
+	}
 
-    /* Success */
-    return dentry;
+	/* Call inode layer to create the node */
+	error = inode_mknod(parent->d_inode, dentry, mode, dev);
+	if (error) goto out;
+
+	/* Success */
+	return dentry;
 
 out:
-    dentry_unref(dentry);
-    return ERR_PTR(error);
+	dentry_unref(dentry);
+	return ERR_PTR(error);
 }
-
 
 /**
  * dentry_lookupMountpoint - Find the mount structure for a dentry
  * @dentry: The dentry to check
- * 
+ *
  * For any dentry, finds the vfsmount structure that is responsible
  * for mounting the filesystem containing this dentry. If the dentry
  * itself is a mount point, returns the mount structure for that mount.
@@ -1319,51 +1267,115 @@ out:
  * Returns: vfsmount pointer with increased refcount on success, NULL on failure
  */
 struct vfsmount* dentry_lookupMountpoint(struct dentry* dentry) {
-    struct dentry* current_dentry = dentry;
-    struct vfsmount* mnt = NULL;
-    struct path path;
-    extern spinlock_t mount_lock;
+	struct dentry* current_dentry = dentry;
+	struct vfsmount* mnt = NULL;
+	struct path path;
+	extern spinlock_t mount_lock;
 	extern struct hashtable mount_hashtable;
-    if (!current_dentry)
-        return NULL;
-    
-    /* Walk up the tree until we find a mount point or reach root */
-    while (current_dentry && current_dentry->d_parent != current_dentry) {
-        /* Check if this is a mount point */
-        if (dentry_isMountpoint(current_dentry)) {
-            path.dentry = current_dentry;
-            path.mnt = NULL;
-            
-            spinlock_lock(&mount_lock);
-            struct list_node* node = hashtable_lookup(&mount_hashtable, &path);
-            if (node) {
-                mnt = container_of(node, struct vfsmount, mnt_hash_node);
-                mount_ref(mnt);
-            }
-            spinlock_unlock(&mount_lock);
-            
-            if (mnt)
-                return mnt;
-        }
-        
-        /* Move up to parent */
-        current_dentry = current_dentry->d_parent;
-    }
-    
-    /* If we've reached here, we're at the root or no mount was found */
-    /* Try to find root mount */
-    if (current_dentry) {
-        path.dentry = current_dentry;
-        path.mnt = NULL;
-        
-        spinlock_lock(&mount_lock);
-        struct list_node* node = hashtable_lookup(&mount_hashtable, &path);
-        if (node) {
-            mnt = container_of(node, struct vfsmount, mnt_hash_node);
-            mount_ref(mnt);
-        }
-        spinlock_unlock(&mount_lock);
-    }
-    
-    return mnt;
+	if (!current_dentry) return NULL;
+
+	/* Walk up the tree until we find a mount point or reach root */
+	while (current_dentry && current_dentry->d_parent != current_dentry) {
+		/* Check if this is a mount point */
+		if (dentry_isMountpoint(current_dentry)) {
+			path.dentry = current_dentry;
+			path.mnt = NULL;
+
+			spinlock_lock(&mount_lock);
+			struct list_node* node = hashtable_lookup(&mount_hashtable, &path);
+			if (node) {
+				mnt = container_of(node, struct vfsmount, mnt_hash_node);
+				mount_ref(mnt);
+			}
+			spinlock_unlock(&mount_lock);
+
+			if (mnt) return mnt;
+		}
+
+		/* Move up to parent */
+		current_dentry = current_dentry->d_parent;
+	}
+
+	/* If we've reached here, we're at the root or no mount was found */
+	/* Try to find root mount */
+	if (current_dentry) {
+		path.dentry = current_dentry;
+		path.mnt = NULL;
+
+		spinlock_lock(&mount_lock);
+		struct list_node* node = hashtable_lookup(&mount_hashtable, &path);
+		if (node) {
+			mnt = container_of(node, struct vfsmount, mnt_hash_node);
+			mount_ref(mnt);
+		}
+		spinlock_unlock(&mount_lock);
+	}
+
+	return mnt;
+}
+
+static int dentry_isMismatch(struct dentry* dentry, int64 lookup_flags) {
+	if (!dentry) return -EINVAL;
+
+	/* 检查dentry是否有inode */
+	if (!dentry->d_inode) return -ENOENT;
+
+	/* 检查类型是否匹配 */
+	if ((lookup_flags & LOOKUP_DIRECTORY) && dentry_isDir(dentry) == false) return -ENOTDIR;
+	if ((lookup_flags & LOOKUP_MONKEY_SYMLINK) && dentry_isSymlink(dentry) == false) return -EINVAL;
+	if ((lookup_flags & LOOKUP_MONKEY_FILE) && dentry_isFile(dentry) == false) return -EINVAL;
+
+	return 0;
+}
+
+int32 dentry_monkey(struct fcontext* fctx) {
+	switch (fctx->fc_action) {
+	case VFS_ACTION_LOOKUP:
+		struct dentry* parent = fctx->fc_dentry;
+		if (!dentry_isDir(fctx->fc_dentry)) {
+			/* 不是目录，返回错误 */
+			return -ENOTDIR;
+		}
+		if (!parent->d_inode) {
+			/* dentry没有inode，返回错误 */
+			return -ENOENT;
+		}
+		// if (*fctx->fc_path_remaining)
+		//  以lookup意图发下来的fc_path_remaining肯定是有效的
+		struct qstr qname;
+		qname.name = fctx->fc_path_remaining;
+		qname.len = strlen(qname.name);
+		qname.hash = full_name_hash(qname.name, qname.len);
+
+		/* 1. 先尝试查找已有的dentry */
+		fctx->fc_sub_dentry = dentry_lookup(parent, &qname);
+		CHECK_PTR_ERROR(fctx->fc_sub_dentry, PTR_ERR(fctx->fc_sub_dentry));
+		if (fctx->fc_sub_dentry){
+			return dentry_isMismatch(fctx->fc_sub_dentry, fctx->fc_action_flags);
+		}
+
+
+		
+		fctx->fc_sub_dentry = __find_in_lru_list(parent, &qname);
+		CHECK_PTR_ERROR(fctx->fc_sub_dentry, PTR_ERR(fctx->fc_sub_dentry));
+		if (fctx->fc_sub_dentry){
+			return dentry_isMismatch(fctx->fc_sub_dentry, fctx->fc_action_flags);
+		}
+
+
+		/* 5. 如果依然没有找到且允许创建，则创建新dentry */
+		if (fctx->fc_action_flags & LOOKUP_CREATE) {
+			/* 创建新dentry */
+			fctx->fc_sub_dentry = __dentry_alloc(parent, &qname);
+			if (fctx->fc_sub_dentry) {
+				/* 添加到哈希表 */
+				int32 ret = __dentry_hash(fctx->fc_sub_dentry);
+				if (ret == 0) { fctx->fc_sub_dentry->d_flags |= DCACHE_HASHED; }
+
+				/* 标记为负dentry */
+				fctx->fc_sub_dentry->d_flags |= DCACHE_NEGATIVE;
+			}
+		}
+
+	}
 }

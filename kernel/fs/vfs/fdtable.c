@@ -1,5 +1,5 @@
 
-#include <kernel/fs/vfs/file.h>
+#include <kernel/vfs.h>
 #include <kernel/mm/kmalloc.h>
 #include <kernel/sched.h>
 #include <kernel/sprint.h>
@@ -738,4 +738,21 @@ ssize_t do_write(int32 fd, const void* buf, size_t count) {
 	ssize_t ret = file_write(filp, buf, count, &filp->f_pos);
 	file_unref(filp);
 	return ret;
+}
+
+
+/**
+ * fd_monkey - translate a possible fd in fcontext to file object
+ * @fctx: fcontext to be translated
+ * @return: 0 on success or no fd in ctx, negative error code on unexpected failures
+ */
+int32 fd_monkey(struct fcontext* fctx){
+
+	fctx->fc_file = fdtable_getFile(fctx->fc_task->fdtable, fctx->fc_fd);
+	CHECK_PTR_VALID(fctx->fc_file, -EBADF);
+
+	fctx->fc_inode = inode_ref(fctx->fc_file->f_inode);
+	CHECK_PTR_VALID(fctx->fc_inode, -EBADF);
+
+	return 0;	
 }

@@ -438,3 +438,29 @@ int32 vfs_mknod_block(const char* path, mode_t mode, dev_t dev) {
 	dentry_unref(dentry);
 	return 0;
 }
+
+
+/**
+ * vfs_monkey - Main entry function to handle filesystem syscalls
+ * @fctx: fcontext to be operated on
+ * @return: 0 or positive on success, negative error code on failure
+ */
+int32 vfs_monkey(struct fcontext* fctx) {
+	if(fctx->fc_fd >= 0) {
+		/* Handle file descriptor operations */
+		int32 ret = fd_monkey(fctx);
+		if (ret < 0) {
+			sprint("vfs_monkey: fd_monkey failed: %d\n", ret);
+			return ret;
+		}
+	}
+
+	/* Handle the path and perform the remaining operation */
+	int32 ret = path_monkey(fctx);
+	if (ret < 0) {
+		sprint("vfs_monkey: path_monkey failed: %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}

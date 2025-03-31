@@ -1,6 +1,9 @@
 #ifndef _VFS_H_
 #define _VFS_H_
 
+
+
+
 #include <kernel/fs/vfs/dentry.h>
 #include <kernel/fs/vfs/file.h>
 #include <kernel/fs/vfs/inode.h>
@@ -16,6 +19,7 @@
 #include <kernel/fs/vfs/vfsmount.h>
 #include <kernel/fs/vfs/fdtable.h>
 #include <kernel/fs/vfs/fs_struct.h>
+#include <kernel/fs/vfs/fcontext.h>
 
 
 #include <kernel/types.h>
@@ -119,5 +123,10 @@ int32 vfs_path_lookup(struct dentry* base_dentry, struct vfsmount* base_mnt, con
 static inline int32 is_dir(fmode_t mode) { return (mode & S_IFMT) == S_IFDIR; }
 static inline int32 is_file(fmode_t mode) { return (mode & S_IFMT) == S_IFREG; }
 static inline int32 is_symlink(fmode_t mode) { return (mode & S_IFMT) == S_IFLNK; }
+
+
+
+
+
 
 #endif /* _VFS_H_ */

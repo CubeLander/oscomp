@@ -6,12 +6,13 @@
 
 struct vfsmount;
 struct dentry;
+struct fcontext;
 /**
  * File path representation
  */
 struct path {
-	struct vfsmount* mnt;  /* Mount information */
 	struct dentry* dentry; /* Directory entry */
+	struct vfsmount* mnt;  /* Mount information */
 };
 
 /* Path lookup and traversal */
@@ -23,14 +24,9 @@ int32 filename_lookup(int32 dfd, const char* name, uint32 flags, struct path* pa
 struct vfsmount* path_lookupMount(struct path* path);
 int32 resolve_path_parent(const char* path_str, struct path* out_parent);
 
-/* Lookup flags */
-#define LOOKUP_FOLLOW 0x0001    /* Follow terminal symlinks */
-#define LOOKUP_DIRECTORY 0x0002 /* Want only directories */
-#define LOOKUP_AUTOMOUNT 0x0004 /* Follow automounts */
-#define LOOKUP_PARENT 0x0010    /* Find parent directory */
-#define LOOKUP_REVAL 0x0020     /* Check if dentries are still valid */
-#define LOOKUP_RCU 0x0080       /* RCU pathwalk mode */
-#define LOOKUP_OPEN 0x0100      /* Open in progress */
-#define LOOKUP_CREATE 0x0200    /* Create in progress */
+int32 path_monkey(struct fcontext* fctx);
+
+
+
 
 #endif

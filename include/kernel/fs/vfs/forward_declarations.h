@@ -1,5 +1,5 @@
 #pragma once
-#include "forward_declarations.h"
+#include <kernel/types.h>
 
 struct path;
 struct kstat;

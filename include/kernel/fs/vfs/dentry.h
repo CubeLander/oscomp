@@ -41,7 +41,6 @@ struct dentry {
 int32 init_dentry_hashtable(void);
 struct dentry* dentry_mkdir(struct dentry* parent, const char* name, fmode_t mode);
 struct dentry* dentry_acquire(struct dentry* parent, const struct qstr* name, int32 is_dir, bool revalidate, bool alloc);
-struct dentry* dentry_acquireRaw(struct dentry* parent, const char* name, int32 is_dir, bool revalidate, bool alloc);
 struct dentry* dentry_ref(struct dentry* dentry);
 int32 dentry_unref(struct dentry* dentry);
 struct dentry* dentry_mknod(struct dentry* parent, const char* name, mode_t mode, dev_t dev);
@@ -112,13 +111,25 @@ static inline bool dentry_isSymlink(const struct dentry* dentry) {
 	return S_ISLNK(dentry->d_inode->i_mode);
 }
 
+static inline bool dentry_isFile(const struct dentry* dentry) {
+	if (!dentry || !dentry->d_inode) return false;
+	return S_ISREG(dentry->d_inode->i_mode);
+}
+
 static inline bool dentry_isMountpoint(const struct dentry* dentry) {
 	if (!dentry) return false;
 	return (dentry->d_flags & DCACHE_MOUNTED) != 0;
 }
 
+static inline bool dentry_isNegative(const struct dentry* dentry) {
+	if (!dentry) return false;
+	return (dentry->d_flags & DCACHE_NEGATIVE) != 0;
+}
+
 bool dentry_isEmptyDir(struct dentry* dentry);
 
+
+int32 dentry_monkey(struct fcontext* fctx);
 
 // 可选：缓存一致性方法
 // void d_rehash_subtree(struct dentry *dentry);
