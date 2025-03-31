@@ -20,7 +20,7 @@ struct dentry {
 
 	uint32 d_flags;
 	struct inode* d_inode;
-
+	struct vfsmount* d_mount;
 	struct qstr* d_name;
 	struct list_node d_hashNode;
 

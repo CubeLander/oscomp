@@ -254,7 +254,6 @@ static void path_acquireRoot(struct path* path) {
 	if (path->dentry) { dentry_unref(path->dentry); }
 	if (path->mnt) { mount_unref(path->mnt); }
 
-
 	path->dentry = dentry_ref(current_task()->fs->root.dentry);
 	path->mnt = mount_ref(current_task()->fs->root.mnt);
 
@@ -375,57 +374,58 @@ int32 path_monkey(struct fcontext* fctx) {
 			}
 			continue;
 		}
-
 		/* Temporarily terminate component for lookup */
 		if (next_slash) { *next_slash = '\0'; }
+
 		char* name_save = fctx->fc_path_remaining;
 		fctx->fc_path_remaining = component;
-		MONKEY_WITH_ACTION(fctx, VFS_ACTION_LOOKUP, open_to_lookup_flags(fctx->fc_flags), {
-			int error = dentry_monkey(fctx);
-			// dentry_monkey会在fctx中生成一个fc_sub_dentry
-			if (error) return error;
-		});
+
+		int ret = MONKEY_WITH_ACTION(dentry_monkey, fctx, VFS_ACTION_LOOKUP, open_to_lookup_flags(fctx->fc_flags));
+		
+		if (IS_ERR_VALUE(ret)) {
+			/* Error occurred during lookup */
+			if (next_slash) { *next_slash = '/'; }
+			fctx->fc_path_remaining = name_save;
+			return ret;
+		}
+
 		/* Restore component */
 		if (next_slash) { *next_slash = '/'; }
 
-		if (dentry_isNegative(fctx->fc_sub_dentry)) {
-			MONKEY_WITH_ACTION(fctx, VFS_ACTION_LOOKUP, open_to_lookup_flags(fctx->fc_flags), {
-				int error = inode_monkey(fctx);
-				// inode_monkey会尝试对fc_sub_dentry做lookup
-				if (error){
-					if (next_slash) { *next_slash = '/'; }
-					return error;
+		if (dentry_isNegative((struct dentry*)fctx->fc_iostruct)) {
+			int ret = MONKEY_WITH_ACTION(inode_monkey, fctx, VFS_ACTION_LOOKUP, open_to_lookup_flags(fctx->fc_flags));
+			if (IS_ERR_VALUE(ret)) {
+				/* Error occurred during lookup */
+				fctx->fc_path_remaining = name_save;
+				return ret;
+			}
+
+			/* Check if this is a mount point */
+			if (dentry_isMountpoint(fctx->fc_dentry)) {
+				/* Find the mount for this mountpoint */
+				struct vfsmount* mounted = dentry_lookupMountpoint(fctx->fc_dentry);
+				if (mounted) {
+					/* Cross mount point downward */
+					if (fctx->fc_mount) mount_unref(fctx->fc_mount);
+					fctx->fc_mount = mounted; /* already has incremented ref count */
+
+					/* Switch to the root of the mounted filesystem */
+					struct dentry* mnt_root = dentry_ref(mounted->mnt_root);
+					dentry_unref(fctx->fc_dentry);
+					fctx->fc_dentry = mnt_root;
 				}
-			});
-		}
-		if (next_slash) { *next_slash = '/'; }
-
-		/* Check if this is a mount point */
-		if (dentry_isMountpoint(fctx->fc_dentry)) {
-			/* Find the mount for this mountpoint */
-			struct vfsmount* mounted = dentry_lookupMountpoint(fctx->fc_dentry);
-			if (mounted) {
-				/* Cross mount point downward */
-				if (fctx->fc_mount) mount_unref(fctx->fc_mount);
-				fctx->fc_mount = mounted; /* already has incremented ref count */
-
-				/* Switch to the root of the mounted filesystem */
-				struct dentry* mnt_root = dentry_ref(mounted->mnt_root);
-				dentry_unref(fctx->fc_dentry);
-				fctx->fc_dentry = mnt_root;
+			}
+			/* Move to next component */
+			if (next_slash) {
+				fctx->fc_path_remaining = next_slash + 1;
+				/* Return after processing one component - let caller decide if we continue */
+				return 0;
+			} else {
+				/* Last component processed - we're done */
+				fctx->fc_path_remaining += len;
+				break;
 			}
 		}
-		/* Move to next component */
-		if (next_slash) {
-			fctx->fc_path_remaining = next_slash + 1;
-			/* Return after processing one component - let caller decide if we continue */
-			return 0;
-		} else {
-			/* Last component processed - we're done */
-			fctx->fc_path_remaining += len;
-			break;
-		}
-	}
 
-	return 0;
-}
+		return 0;
+	}

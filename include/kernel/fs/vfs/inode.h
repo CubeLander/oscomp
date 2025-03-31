@@ -74,9 +74,6 @@ struct inode {
 	/* Add hash table support */
 	struct list_node i_hash_node; /* For hash table linkage */
 
-	/* Operations */
-	const struct inode_operations* i_op; /* Inode operations */
-
 	/* Reference counting and locking */
 	atomic_t i_refcount;  /* Reference count */
 	spinlock_t i_lock; /* Protects changes to inode */
@@ -100,33 +97,34 @@ struct inode {
 	blkcnt_t i_blocks;        // 总共占用了多少数据块（不含元块）
 };
 
+int32 inode_monkey(struct fcontext* fctx);
 
 /*
  * Inode APIs
  */
-int32 inode_cache_init(void);
+// int32 inode_cache_init(void);
 
-struct inode* inode_acquire(struct superblock* sb, uint64 ino);
-struct inode* inode_ref(struct inode* inode);
-void inode_unref(struct inode* inode);
+// struct inode* inode_acquire(struct superblock* sb, uint64 ino);
+// struct inode* inode_ref(struct inode* inode);
+// void inode_unref(struct inode* inode);
 
-/*dentry called executer functions*/
-int32 inode_mknod(struct inode* dir, struct dentry* dentry, mode_t mode, dev_t dev);
-int32 inode_mkdir(struct inode* dir, struct dentry* dentry, mode_t mode);
-int32 inode_rmdir(struct inode*, struct dentry*);
+// /*dentry called executer functions*/
+// int32 inode_mknod(struct inode* dir, struct dentry* dentry, mode_t mode, dev_t dev);
+// int32 inode_mkdir(struct inode* dir, struct dentry* dentry, mode_t mode);
+// int32 inode_rmdir(struct inode*, struct dentry*);
 
-/* Inode lookup and creation */
-int32 inode_permission(struct inode* inode, int32 mask);
-/* Reference counting */
+// /* Inode lookup and creation */
+// int32 inode_permission(struct inode* inode, int32 mask);
+// /* Reference counting */
 
-/*供下层文件系统调用，在IO读写后通知进程*/
-int unlock_new_inode(struct inode* inode);
-void wake_up_inode(struct inode* inode);
+// /*供下层文件系统调用，在IO读写后通知进程*/
+// int unlock_new_inode(struct inode* inode);
+// void wake_up_inode(struct inode* inode);
 
-/* Inode state management */
-void inode_setDirty(struct inode* inode);
-int32 inode_sync(struct inode* inode, int32 wait);
-int32 inode_sync_metadata(struct inode* inode, int32 wait);
+// /* Inode state management */
+// void inode_setDirty(struct inode* inode);
+// int32 inode_sync(struct inode* inode, int32 wait);
+// int32 inode_sync_metadata(struct inode* inode, int32 wait);
 /* Permission checking */
 // int32 generic_permission(struct inode *inode, int32 mask);
 

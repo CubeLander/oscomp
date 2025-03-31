@@ -64,7 +64,11 @@
 		"radix_tree.h": "c",
 		"ext4_adaptor.h": "c",
 		"string_view": "c",
-		"initializer_list": "c"
+		"initializer_list": "c",
+		"*.tcc": "cpp",
+		"optional": "cpp",
+		"ratio": "cpp",
+		"system_error": "cpp"
 	},
     "C_Cpp.vcFormat.newLine.closeBraceSameLine.emptyFunction": true,
     "C_Cpp.vcFormat.newLine.closeBraceSameLine.emptyType": true,

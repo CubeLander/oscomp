@@ -1216,12 +1216,20 @@ bool dentry_isEmptyDir(struct dentry* dentry) {
  *
  * Returns: New dentry on success, ERR_PTR on failure
  */
-struct dentry* dentry_monkey_mknod(struct fcontext* fctx) {
-	struct dentry* parent = fctx->fc_dentry;
-	struct qstr* name = &fctx->fc_string;
+struct dentry* dentry_mknod(struct dentry* parent, const char* name, mode_t mode, dev_t dev) {
+	struct dentry* dentry;
 	int32 error;
 
-	MONKEY_WITH_ACTION(fctx, VFS_ACTION_LOOKUP);
+	/* Validate parameters */
+	if (!parent || !parent->d_inode || !name || !*name) return ERR_PTR(-EINVAL);
+
+	/* Check if parent is a directory */
+	if (!dentry_isDir(parent)) return ERR_PTR(-ENOTDIR);
+
+	/* Check permissions */
+	error = inode_permission(parent->d_inode, MAY_WRITE | MAY_EXEC);
+	if (error) return ERR_PTR(error);
+
 	/* Create a dentry for this name in the parent directory */
 	dentry = dentry_acquireRaw(parent, name, 0, false, true);
 	unlikely_if(!dentry) return ERR_PTR(-ENOMEM);
@@ -1320,12 +1328,8 @@ static int dentry_isMismatch(struct dentry* dentry, int64 lookup_flags) {
 	return 0;
 }
 
-int32 dentry_monkey_lookup(struct fcontext* fctx) {
-	int error;
+int32 __dentry_monkey_lookup(struct fcontext* fctx){
 	struct dentry* parent = fctx->fc_dentry;
-	if (fctx->fc_iostruct) {
-		return -EINVAL; // 调用者有责任使用和清空这个字段
-	}
 	if (!dentry_isDir(fctx->fc_dentry)) {
 		/* 不是目录，返回错误 */
 		return -ENOTDIR;
@@ -1341,70 +1345,61 @@ int32 dentry_monkey_lookup(struct fcontext* fctx) {
 	qname.len = strlen(qname.name);
 	qname.hash = full_name_hash(qname.name, qname.len);
 
-	struct dentry* ret_dentry = NULL;
 	/* 1. 先尝试查找已有的dentry */
-	ret_dentry = dentry_lookup(parent, &qname);
-	CHECK_PTR_ERROR(ret_dentry, PTR_ERR(ret_dentry));
-	if (ret_dentry) {
-		error = dentry_isMismatch(ret_dentry, fctx->fc_action_flags);
-		if (error) {
-			/* 如果dentry不匹配，则返回错误 */
-			dentry_unref(ret_dentry);
-			return error;
-		} else {
-			/* 如果dentry匹配，则返回 */
-			fctx->fc_iostruct = ret_dentry;
-			return 0;
-		}
+	fctx->fc_sub_dentry = dentry_lookup(parent, &qname);
+	CHECK_PTR_ERROR(fctx->fc_sub_dentry, PTR_ERR(fctx->fc_sub_dentry));
+	if (fctx->fc_sub_dentry){
+		return dentry_isMismatch(fctx->fc_sub_dentry, fctx->fc_action_flags);
 	}
 
-	ret_dentry = __find_in_lru_list(parent, &qname);
-	CHECK_PTR_ERROR(ret_dentry, PTR_ERR(ret_dentry));
-	if (ret_dentry) {
-		error = dentry_isMismatch(ret_dentry, fctx->fc_action_flags);
-		if (error) {
-			/* 如果dentry不匹配，则返回错误 */
-			dentry_unref(ret_dentry);
-			return error;
-		} else {
-			/* 如果dentry匹配，则返回 */
-			fctx->fc_iostruct = ret_dentry;
-			return 0;
-		}
+
+
+	fctx->fc_sub_dentry = __find_in_lru_list(parent, &qname);
+	CHECK_PTR_ERROR(fctx->fc_sub_dentry, PTR_ERR(fctx->fc_sub_dentry));
+	if (fctx->fc_sub_dentry){
+		return dentry_isMismatch(fctx->fc_sub_dentry, fctx->fc_action_flags);
 	}
+
 
 	/* 5. 如果依然没有找到且允许创建，则创建新dentry */
 	if (fctx->fc_action_flags & LOOKUP_CREATE) {
 		/* 创建新dentry */
-		ret_dentry = __dentry_alloc(parent, &qname);
-		if (ret_dentry) {
+		fctx->fc_sub_dentry = __dentry_alloc(parent, &qname);
+		if (fctx->fc_sub_dentry) {
 			/* 添加到哈希表 */
-			int32 ret = __dentry_hash(ret_dentry);
-			if (ret == 0) { ret_dentry->d_flags |= DCACHE_HASHED; }
+			int32 ret = __dentry_hash(fctx->fc_sub_dentry);
+			if (ret == 0) { fctx->fc_sub_dentry->d_flags |= DCACHE_HASHED; }
 
 			/* 标记为负dentry */
-			ret_dentry->d_flags |= DCACHE_NEGATIVE;
+			fctx->fc_sub_dentry->d_flags |= DCACHE_NEGATIVE;
 		}
 	}
+
+
+
 }
 
+
+
+
+
 int32 dentry_monkey(struct fcontext* fctx) {
-	if (fctx->fc_action >= VFS_ACTION_MAX) return -EINVAL;
+	if (fctx->fc_action >= VFS_ACTION_MAX)
+		return -EINVAL;
 
 	monkey_intent_handler_t handler = dentry_intent_table[fctx->fc_action];
-	if (!handler) return -ENOTSUP;
+	if (!handler)
+		return -ENOTSUP;
 
 	return handler(fctx);
 }
-// clang-format off
-monkey_intent_handler_t dentry_intent_table[VFS_ACTION_MAX] = {
-    [VFS_ACTION_LOOKUP] = dentry_monkey_lookup, 
-	[VFS_ACTION_CREATE] = dentry_monkey, 
-	[VFS_ACTION_MKDIR] = dentry_monkey,
-    [VFS_ACTION_RMDIR] = dentry_monkey,         
-	[VFS_ACTION_UNLINK] = dentry_monkey, 
-	[VFS_ACTION_RENAME] = dentry_monkey,
-	[VFS_ACTION_MKNOD] = dentry_monkey_mknod,
 
+
+monkey_intent_handler_t dentry_intent_table[VFS_ACTION_MAX] = {
+	[VFS_ACTION_LOOKUP] = __dentry_monkey_lookup,
+	[VFS_ACTION_CREATE] = dentry_monkey,
+	[VFS_ACTION_MKDIR] = dentry_monkey,
+	[VFS_ACTION_RMDIR] = dentry_monkey,
+	[VFS_ACTION_UNLINK] = dentry_monkey,
+	[VFS_ACTION_RENAME] = dentry_monkey,
 };
-// clang-format on

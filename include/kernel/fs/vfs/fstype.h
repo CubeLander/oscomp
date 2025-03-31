@@ -17,14 +17,7 @@ struct fstype {
 	/* Add to struct fstype */
 	uint64 fs_capabilities; /* Capabilities like case sensitivity */
 
-	struct superblock* (*fs_mount)(struct fstype* type, int32 flags, dev_t dev_id, void* fs_data);
-	// 这个虚函数在架构中等效于__fstype_allocSuperblock
-	// called by vfs_kern_mount->fstype_mount
-
-	void (*fs_unmount)(struct superblock*);
-
-	int32 (*fs_init)(void); /* Called during registration */
-	void (*fs_exit)(void);  /* Called during unregistration */
+	int32 (*fs_monkey)(struct fcontext* fctx);
 };
 
 // int32 parse_mount_options(const char* options, struct fs_mount_context* parsed);
