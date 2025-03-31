@@ -261,15 +261,16 @@ static void path_acquireRoot(struct path* path) {
 }
 
 /**
- * path_next_component - 从路径中提取下一个组件
- * @fctx: 文件上下文
+ * path_next_component - Extract the next component from a path string
+ * @fctx: File context
  *
- * 从fc_path_remaining中提取下一个路径组件，并设置到fc_string中
+ * Extracts the next path component from fc_path_remaining and sets it in fc_string
+ * Does not interpret "." or ".." - just extracts the raw component string
  *
- * 返回值:
- *   1: 成功提取了组件
- *   0: 路径已解析完毕
- *   负值: 错误码
+ * Returns:
+ *   1: Successfully extracted a component
+ *   0: Path parsing is complete (no more components)
+ *   Negative: Error code
  */
 static int32 path_next_component(struct fcontext* fctx) {
 	char* next_slash;
@@ -277,10 +278,16 @@ static int32 path_next_component(struct fcontext* fctx) {
 
 	if (!fctx || !fctx->fc_path_remaining) return -EINVAL;
 
-	/* 检查路径是否已经完成 */
-	if (*fctx->fc_path_remaining == '\0') return 0; /* 解析完成 */
+	/* Check if path is already complete */
+	if (*fctx->fc_path_remaining == '\0') return 0; /* Parsing complete */
 
-	/* 找到下一个组件 */
+	/* Skip leading slashes */
+	while (*fctx->fc_path_remaining == '/') { fctx->fc_path_remaining++; }
+
+	/* Check if we've reached the end after skipping slashes */
+	if (*fctx->fc_path_remaining == '\0') return 0;
+
+	/* Find the next component boundary */
 	next_slash = strchr(fctx->fc_path_remaining, '/');
 
 	if (next_slash) {
@@ -289,26 +296,57 @@ static int32 path_next_component(struct fcontext* fctx) {
 		len = strlen(fctx->fc_path_remaining);
 	}
 
-	/* 跳过空组件 */
-	if (len == 0) {
-		fctx->fc_path_remaining++;        /* 跳过连续的'/' */
-		return path_next_component(fctx); /* 递归调用获取下一个有效组件 */
+	/* Set fc_string fields */
+	fctx->fc_charbuf = fctx->fc_path_remaining;
+	fctx->fc_strlen = len;
+	fctx->fc_hash = full_name_hash(fctx->fc_charbuf, len);
+
+	/* Move to next component */
+	fctx->fc_path_remaining += len;
+	if (*fctx->fc_path_remaining == '/') {
+		/* Point to the character after the slash */
+		while (*fctx->fc_path_remaining == '/') { fctx->fc_path_remaining++; }
 	}
 
-	/* 处理"." - 当前目录 */
-	if (len == 1 && fctx->fc_path_remaining[0] == '.') {
-		/* 跳过这个组件 */
-		fctx->fc_path_remaining += len;
-		if (next_slash) fctx->fc_path_remaining++;
-		return path_next_component(fctx);
+	return 1; /* Successfully extracted a component */
+}
+
+/**
+ * path_step - Process one step of path resolution
+ * @fctx: File context
+ *
+ * Handles the component in fc_string, interpreting "." and ".." appropriately
+ * and resolving the current path component.
+ *
+ * Returns:
+ *   1: Component processed, but path resolution is not complete
+ *   0: Path resolution is complete
+ *   Negative: Error code
+ */
+static int32 path_step(struct fcontext* fctx) {
+	int32 ret;
+
+	/* Skip empty components */
+	if (fctx->fc_strlen == 0) {
+		/* Clear the component data */
+		fctx->fc_charbuf = NULL;
+		return 1; /* Continue with next component */
 	}
 
-	/* 处理".." - 父目录 */
-	if (len == 2 && fctx->fc_path_remaining[0] == '.' && fctx->fc_path_remaining[1] == '.') {
-		/* 处理向父目录移动的逻辑 */
-		/* 检查是否在挂载点 */
+	/* Handle "." - current directory */
+	if (fctx->fc_strlen == 1 && fctx->fc_charbuf[0] == '.') {
+		/* Do nothing, stay in current directory */
+		/* Clear the component data */
+		fctx->fc_charbuf = NULL;
+		return 1; /* Continue with next component */
+	}
+
+	/* Handle ".." - parent directory */
+	if (fctx->fc_strlen == 2 && fctx->fc_charbuf[0] == '.' && fctx->fc_charbuf[1] == '.') {
+		/* Handle parent directory logic */
+		/* Check if at mount point */
 		if (fctx->fc_mount && fctx->fc_dentry == fctx->fc_mount->mnt_root) {
-			/* 向上穿越挂载点 */
+			/* Cross mount point upward */
 			struct vfsmount* parent_mnt = fctx->fc_mount->mnt_path.mnt;
 			struct dentry* mountpoint = fctx->fc_mount->mnt_path.dentry;
 
@@ -319,7 +357,7 @@ static int32 path_next_component(struct fcontext* fctx) {
 				dentry_unref(fctx->fc_dentry);
 				fctx->fc_dentry = dentry_ref(mountpoint);
 
-				/* 再向上到父目录 */
+				/* Then go up to parent directory */
 				struct dentry* parent = fctx->fc_dentry->d_parent;
 				if (parent) {
 					dentry_unref(fctx->fc_dentry);
@@ -327,7 +365,7 @@ static int32 path_next_component(struct fcontext* fctx) {
 				}
 			}
 		} else {
-			/* 普通的父目录 */
+			/* Regular parent directory */
 			struct dentry* parent = fctx->fc_dentry->d_parent;
 			if (parent && parent != fctx->fc_dentry) {
 				dentry_unref(fctx->fc_dentry);
@@ -335,130 +373,98 @@ static int32 path_next_component(struct fcontext* fctx) {
 			}
 		}
 
-		/* 移动到下一个组件 */
-		fctx->fc_path_remaining += len;
-		if (next_slash) fctx->fc_path_remaining++;
-		return path_next_component(fctx);
+		/* Clear the component data */
+		fctx->fc_charbuf = NULL;
+		fctx->fc_strlen = 0;
+		fctx->fc_hash = 0;
+
+		return 1; /* Continue with next component */
 	}
 
-	/* 设置fc_string字段 */
-	fctx->fc_charbuf = fctx->fc_path_remaining;
-	fctx->fc_strlen = len;
-	fctx->fc_hash = full_name_hash(fctx->fc_charbuf, len);
-
-	/* 暂存当前组件位置 */
-	char* current_pos = fctx->fc_path_remaining;
-
-	/* 移动到下一个组件 */
-	fctx->fc_path_remaining += len;
-	if (next_slash) fctx->fc_path_remaining++;
-
-	return 1; /* 成功提取了组件 */
-}
-
-/**
- * path_step - 执行一步路径解析
- * @fctx: 文件上下文
- *
- * 返回值:
- *   1: 处理完一个组件，但路径尚未解析完
- *   0: 路径已解析完毕
- *   负值: 错误码
- */
-static int32 path_step(struct fcontext* fctx) {
-	int32 ret;
-
-	/* 如果fc_charbuf为空，提取下一个组件 */
-	if (!fctx->fc_charbuf) {
-		ret = path_next_component(fctx);
-		if (ret <= 0) return ret; /* 完成或错误 */
-
-		/* 组件已提取到fc_string */
-	}
-
-	/* 当前处理的是否为最后一个组件 */
+	/* Current processing is the last component? */
 	bool is_last_component = (*fctx->fc_path_remaining == '\0');
 
-	/* 是否为创建模式 */
+	/* Is this a create mode operation? */
 	bool create_mode = (fctx->fc_flags & O_CREAT) && is_last_component;
 
-	/* 现在处理fc_string所表示的组件 */
-	ret = MONKEY_WITH_ACTION(dentry_monkey, fctx, VFS_ACTION_LOOKUP, open_to_lookup_flags(fctx->fc_flags));
+	/* Now process the regular component in fc_string */
+	ret = MONKEY_WITH_ACTION(dentry_monkey, fctx, VFS_ACTION_PATHWALK, open_to_lookup_flags(fctx->fc_flags));
 
-    if (IS_ERR_VALUE(ret)) {
-        /* 如果是ENOENT且是创建模式，我们应该转向创建文件 */
-        if (ret == -ENOENT && create_mode) {
-            /* 使用特殊的CREATE意图，而不是再次尝试LOOKUP */
-            ret = MONKEY_WITH_ACTION(inode_monkey, fctx, VFS_ACTION_CREATE, 
-                                   fctx->fc_mode);
-            
-            if (ret < 0) return ret; /* 创建失败 */
-            return 0; /* 创建成功，路径解析完成 */
-        }
-        
-        return ret; /* 其他错误直接返回 */
-    }
+	/* Handle negative dentry case */
+	if (dentry_isNegative(fctx->fc_dentry)) {
+		/* For intermediate component that doesn't exist, we can't continue */
+		if (!is_last_component) { return -ENOENT; /* Return ENOENT immediately for non-existent intermediate component */ }
 
-    /* 处理negative dentry情况 */
-    if (dentry_isNegative(fctx->fc_dentry)) {
-        if (is_last_component && create_mode) {
-            /* 对于最后一个组件的negative dentry，且有创建标志，使用CREATE意图 */
-            ret = MONKEY_WITH_ACTION(inode_monkey, fctx, VFS_ACTION_CREATE, 
-                                   fctx->fc_flags);
-        } else {
-            /* 对于中间组件或无创建标志，使用LOOKUP意图 */
-            ret = MONKEY_WITH_ACTION(inode_monkey, fctx, VFS_ACTION_LOOKUP, 
-                                   open_to_lookup_flags(fctx->fc_flags));
-        }
-        
-        if (ret < 0) return ret; /* 处理失败 */
-    }
+		/* For last component, return to caller with the negative dentry state */
+		/* Let the caller decide how to handle it based on the original intent */
+		return 0; /* Successfully resolved to a negative dentry */
+	}
 
-	/* 检查挂载点 */
+	/* Check for mount point */
 	if (fctx->fc_dentry->d_flags & DCACHE_MOUNTED) {
-		/* 穿越挂载点 */
+		/* Cross mount point */
 		struct vfsmount* mounted = fctx->fc_dentry->d_mount;
 		if (mounted) {
 			if (fctx->fc_mount) mount_unref(fctx->fc_mount);
 			fctx->fc_mount = mount_ref(mounted);
 
-			/* 切换到挂载文件系统的根 */
+			/* Switch to mounted filesystem's root */
 			struct dentry* mnt_root = dentry_ref(mounted->mnt_root);
 			dentry_unref(fctx->fc_dentry);
 			fctx->fc_dentry = mnt_root;
 		}
 	}
 
-	/* 清除处理完的组件 */
+	/* Clear the processed component */
 	fctx->fc_charbuf = NULL;
 	fctx->fc_strlen = 0;
 	fctx->fc_hash = 0;
 
-	/* 判断是否还有更多组件 */
-	if (*fctx->fc_path_remaining == '\0') { return 0; /* 完成所有路径解析 */ }
+	/* Determine if there are more components */
+	if (is_last_component) { return 0; /* Completed all path resolution */ }
 
-	return 1; /* 还有更多组件需要处理 */
+	return 1; /* More components to process */
 }
 
 /**
- * path_monkey - 处理路径遍历
- * @fctx: 文件上下文
+ * isAbsolutePath - Check if a path is absolute
+ * @path: Path string to check
  *
- * 返回值: 0表示成功，负值表示错误
+ * Returns: true if path is absolute (starts with '/'), false otherwise
+ */
+static bool isAbsolutePath(const char* path) { return path && path[0] == '/'; }
+
+/**
+ * path_acquireRoot - Set the path to the root directory
+ * @path: Path structure to initialize with root
+ */
+static void path_acquireRoot(struct path* path) {
+	if (path->dentry) { dentry_unref(path->dentry); }
+	if (path->mnt) { mount_unref(path->mnt); }
+
+	path->dentry = dentry_ref(current_task()->fs->root.dentry);
+	path->mnt = mount_ref(current_task()->fs->root.mnt);
+}
+
+/**
+ * path_monkey - Handle path traversal
+ * @fctx: File context
+ *
+ * Returns: 0 for success, negative value for error
  */
 int32 path_monkey(struct fcontext* fctx) {
 	int32 ret;
 
-	/* 验证上下文 */
+	/* Validate context */
 	if (!fctx || !fctx->fc_path_remaining) return -EINVAL;
 
-	/* 处理绝对路径 */
+	/* Handle absolute path */
 	if (isAbsolutePath(fctx->fc_path_remaining)) {
-		fctx->fc_path_remaining++; /* 跳过前导斜线 */
+		fctx->fc_path_remaining++; /* Skip leading slash */
 		path_acquireRoot(&fctx->fc_path);
 	}
 
-	/* 初始化dentry和mount */
+	/* Initialize dentry and mount if needed */
 	if (!fctx->fc_dentry) {
 		if (fctx->fc_file) {
 			fctx->fc_dentry = dentry_ref(fctx->fc_file->f_path.dentry);
@@ -469,11 +475,16 @@ int32 path_monkey(struct fcontext* fctx) {
 		}
 	}
 
-	/* 逐步执行路径解析 */
-	do {
-		ret = path_step(fctx);
-		if (ret < 0) return ret; /* 发生错误 */
-	} while (ret > 0); /* 继续处理，直到完成或错误 */
+	/* Main path resolution loop */
+	while (true) {
+		/* Extract next component */
+		ret = path_next_component(fctx);
+		if (ret <= 0) { return (ret < 0) ? ret : 0; /* Return error or success */ }
 
-	return 0; /* 成功完成路径解析 */
+		/* Process the component */
+		ret = path_step(fctx);
+		if (ret <= 0) { return (ret < 0) ? ret : 0; /* Return error or success */ }
+
+		/* Continue loop for next component */
+	}
 }

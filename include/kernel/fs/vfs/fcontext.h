@@ -149,7 +149,7 @@ enum monkey_action{
 	VFS_ACTION_SETATTR,
 	VFS_ACTION_FIEMAP,
 	VFS_ACTION_LOOKUP,	// 这个是一个伪系统调用
-
+	VFS_ACTION_PATHWALK,
 
 	// fs_monkey需要回应这些意图
 	FS_ACTION_INITFS,
