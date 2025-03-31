@@ -703,6 +703,47 @@ static int32 generic_permission(struct inode* inode, int32 mask) {
 	return res;
 }
 
+int32 __inode_monkey_lookup(struct fcontext* fctx) {
+	int32 error = 0;
+	struct inode* current_inode;
+	/* Get the current inode from the path's dentry */
+	current_inode = fctx->fc_dentry->d_inode;
+	if (!current_inode) { return -ENOENT; }
+
+	/* Handle lookup action for negative dentries */
+	if (!fctx->fc_sub_dentry || !current_inode->i_op || !current_inode->i_op->lookup) { return -ENOTDIR; }
+
+	/* Call filesystem-specific lookup method */
+	struct dentry* found = current_inode->i_op->lookup(fctx);
+
+	/* Handle lookup errors */
+	if (PTR_IS_ERROR(found)) { return PTR_ERR(found); }
+
+	/* If lookup succeeded and found a valid dentry with inode */
+	if (found) {
+		if (found->d_inode) {
+			/* Instantiate the dentry with the found inode */
+			error = dentry_instantiate(fctx->fc_sub_dentry, inode_ref(found->d_inode));
+			dentry_unref(found);
+			if (error) { return error; }
+		} else {
+			/* Found dentry is also negative, just use it */
+			dentry_unref(found);
+		}
+	}
+
+	/* Release old dentry reference and update with sub_dentry */
+	if (fctx->fc_dentry) { dentry_unref(fctx->fc_dentry); }
+	fctx->fc_dentry = fctx->fc_sub_dentry;
+	fctx->fc_sub_dentry = NULL;
+
+	return error;
+}
+
+
+
+
+
 int32 inode_monkey(struct fcontext* fctx) {
 	int32 error = 0;
 	struct inode* current_inode;
@@ -714,37 +755,8 @@ int32 inode_monkey(struct fcontext* fctx) {
 	if (!current_inode) { return -ENOENT; }
 
 	switch (fctx->fc_action) {
-	case VFS_ACTION_LOOKUP: {
-		/* Handle lookup action for negative dentries */
-		if (!fctx->fc_sub_dentry || !current_inode->i_op || !current_inode->i_op->lookup) { return -ENOTDIR; }
-
-		/* Call filesystem-specific lookup method */
-		struct dentry* found = current_inode->i_op->lookup(current_inode, fctx->fc_sub_dentry, fctx->fc_action_flags);
-
-		/* Handle lookup errors */
-		if (PTR_IS_ERROR(found)) { return PTR_ERR(found); }
-
-		/* If lookup succeeded and found a valid dentry with inode */
-		if (found) {
-			if (found->d_inode) {
-				/* Instantiate the dentry with the found inode */
-				error = dentry_instantiate(fctx->fc_sub_dentry, inode_ref(found->d_inode));
-				dentry_unref(found);
-				if (error) { return error; }
-			} else {
-				/* Found dentry is also negative, just use it */
-				dentry_unref(found);
-			}
-		}
-
-		/* Release old dentry reference and update with sub_dentry */
-		if (fctx->fc_dentry) { dentry_unref(fctx->fc_dentry); }
-		fctx->fc_dentry = fctx->fc_sub_dentry;
-		fctx->fc_sub_dentry = NULL;
-
-		break;
-	}
-
+	case VFS_ACTION_LOOKUP:
+		return __inode_monkey_lookup(fctx);
 	case VFS_ACTION_CREATE:
 		/* Call create method if available */
 		if (!current_inode->i_op || !current_inode->i_op->create) { return -EACCES; }

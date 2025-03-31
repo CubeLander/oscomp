@@ -391,39 +391,19 @@ int32 path_monkey(struct fcontext* fctx) {
 		if (dentry_isNegative(fctx->fc_sub_dentry)) {
 			MONKEY_WITH_ACTION(fctx, VFS_ACTION_LOOKUP, open_to_lookup_flags(fctx->fc_flags), {
 				int error = inode_monkey(fctx);
-				if (error) return error;
+				// inode_monkey会尝试对fc_sub_dentry做lookup
+				if (error){
+					if (next_slash) { *next_slash = '/'; }
+					return error;
+				}
 			});
 		}
-
-		// next = dentry_acquireRaw(fctx->fc_dentry, component, -1, true, true);
-		struct dentry* next = fctx->fc_sub_dentry;
-
-		/* If negative dentry, ask filesystem to look it up */
-		if (!next->d_inode && fctx->fc_dentry->d_inode && fctx->fc_dentry->d_inode->i_op && fctx->fc_dentry->d_inode->i_op->lookup) {
-
-			/* Call filesystem lookup method */
-			struct dentry* found = fctx->fc_dentry->d_inode->i_op->lookup(fctx->fc_dentry->d_inode, next, 0);
-			if (PTR_IS_ERROR(found)) {
-				dentry_unref(next);
-				/* Don't clean up fc_path, caller needs to do that */
-				return PTR_ERR(found);
-			}
-
-			if (found && found->d_inode) {
-				/* Instantiate the dentry with the found inode */
-				dentry_instantiate(next, inode_ref(found->d_inode));
-				dentry_unref(found);
-			}
-		}
-
-		/* Update path in context */
-		dentry_unref(fctx->fc_dentry);
-		fctx->fc_dentry = next;
+		if (next_slash) { *next_slash = '/'; }
 
 		/* Check if this is a mount point */
-		if (dentry_isMountpoint(next)) {
+		if (dentry_isMountpoint(fctx->fc_dentry)) {
 			/* Find the mount for this mountpoint */
-			struct vfsmount* mounted = dentry_lookupMountpoint(next);
+			struct vfsmount* mounted = dentry_lookupMountpoint(fctx->fc_dentry);
 			if (mounted) {
 				/* Cross mount point downward */
 				if (fctx->fc_mount) mount_unref(fctx->fc_mount);
@@ -431,7 +411,7 @@ int32 path_monkey(struct fcontext* fctx) {
 
 				/* Switch to the root of the mounted filesystem */
 				struct dentry* mnt_root = dentry_ref(mounted->mnt_root);
-				dentry_unref(next);
+				dentry_unref(fctx->fc_dentry);
 				fctx->fc_dentry = mnt_root;
 			}
 		}
