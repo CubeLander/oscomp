@@ -21,6 +21,7 @@ struct dentry {
 	uint32 d_flags;
 	struct inode* d_inode;
 	struct vfsmount* d_mount;
+	// Direct reference to mount (only populated for mountpoints)
 	struct qstr* d_name;
 	struct list_node d_hashNode;
 

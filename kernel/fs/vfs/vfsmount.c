@@ -236,6 +236,14 @@ int32 __mount_add(struct vfsmount* newmnt, struct path* mountpoint, int32 flags)
     /* Set up mountpoint */
     newmnt->mnt_path.dentry = dentry_ref(mountpoint->dentry);
     newmnt->mnt_path.mnt = mount_ref(mountpoint->mnt);
+
+    /* Set the direct mount reference in the dentry */
+    spinlock_lock(&mountpoint->dentry->d_lock);
+    mountpoint->dentry->d_mount = mount_ref(newmnt);
+    /* Mark dentry as a mountpoint */
+    mountpoint->dentry->d_flags |= DCACHE_MOUNTED;
+    spinlock_unlock(&mountpoint->dentry->d_lock);
+
     
     /* Add to parent's child list */
     if (mountpoint->mnt) {
@@ -245,6 +253,13 @@ int32 __mount_add(struct vfsmount* newmnt, struct path* mountpoint, int32 flags)
     /* Add to hash table */
     error = __mount_hash(newmnt);
     if (error) {
+        /* Clean up on error */
+        spinlock_lock(&mountpoint->dentry->d_lock);
+        mount_unref(mountpoint->dentry->d_mount);
+        mountpoint->dentry->d_mount = NULL;
+        mountpoint->dentry->d_flags &= ~DCACHE_MOUNTED;
+        spinlock_unlock(&mountpoint->dentry->d_lock);
+
         dentry_unref(newmnt->mnt_path.dentry);
         mount_unref(newmnt->mnt_path.mnt);
         newmnt->mnt_path.dentry = NULL;
@@ -416,6 +431,33 @@ int32 __mount_remount(struct path* mount_path, uint64 flags, void* data) {
     
     /* Update mount flags */
     mnt->mnt_flags = remount_flags;
+    
+    return 0;
+}
+
+
+int32 do_umount(struct vfsmount* mnt, int32 flags)
+{
+    struct dentry* dentry;
+    
+    if (!mnt)
+        return -EINVAL;
+    
+    /* Get the mountpoint dentry */
+    dentry = mnt->mnt_path.dentry;
+    if (!dentry)
+        return -EINVAL;
+    
+    /* Clear the mountpoint reference */
+    spinlock_lock(&dentry->d_lock);
+    if (dentry->d_mount == mnt) {
+        mount_unref(dentry->d_mount);
+        dentry->d_mount = NULL;
+        dentry->d_flags &= ~DCACHE_MOUNTED;
+    }
+    spinlock_unlock(&dentry->d_lock);
+    
+    /* Rest of umount code... */
     
     return 0;
 }

@@ -1244,66 +1244,13 @@ out:
 	return ERR_PTR(error);
 }
 
-/**
- * dentry_lookupMountpoint - Find the mount structure for a dentry
- * @dentry: The dentry to check
- *
- * For any dentry, finds the vfsmount structure that is responsible
- * for mounting the filesystem containing this dentry. If the dentry
- * itself is a mount point, returns the mount structure for that mount.
- * Otherwise, walks up the dentry tree to find the nearest mount point.
- *
- * The returned vfsmount has its reference count incremented.
- * Callers must call mount_unref() when done with it.
- *
- * Returns: vfsmount pointer with increased refcount on success, NULL on failure
- */
 struct vfsmount* dentry_lookupMountpoint(struct dentry* dentry) {
-	struct dentry* current_dentry = dentry;
-	struct vfsmount* mnt = NULL;
-	struct path path;
-	extern spinlock_t mount_lock;
-	extern struct hashtable mount_hashtable;
-	if (!current_dentry) return NULL;
+	if (!dentry) return NULL;
 
-	/* Walk up the tree until we find a mount point or reach root */
-	while (current_dentry && current_dentry->d_parent != current_dentry) {
-		/* Check if this is a mount point */
-		if (dentry_isMountpoint(current_dentry)) {
-			path.dentry = current_dentry;
-			path.mnt = NULL;
+	/* Simply return the direct mount reference if this is a mountpoint */
+	if (dentry->d_flags & DCACHE_MOUNTED) { return mount_ref(dentry->d_mount); }
 
-			spinlock_lock(&mount_lock);
-			struct list_node* node = hashtable_lookup(&mount_hashtable, &path);
-			if (node) {
-				mnt = container_of(node, struct vfsmount, mnt_hash_node);
-				mount_ref(mnt);
-			}
-			spinlock_unlock(&mount_lock);
-
-			if (mnt) return mnt;
-		}
-
-		/* Move up to parent */
-		current_dentry = current_dentry->d_parent;
-	}
-
-	/* If we've reached here, we're at the root or no mount was found */
-	/* Try to find root mount */
-	if (current_dentry) {
-		path.dentry = current_dentry;
-		path.mnt = NULL;
-
-		spinlock_lock(&mount_lock);
-		struct list_node* node = hashtable_lookup(&mount_hashtable, &path);
-		if (node) {
-			mnt = container_of(node, struct vfsmount, mnt_hash_node);
-			mount_ref(mnt);
-		}
-		spinlock_unlock(&mount_lock);
-	}
-
-	return mnt;
+	return NULL;
 }
 
 static int dentry_isMismatch(struct dentry* dentry, int64 lookup_flags) {
@@ -1323,70 +1270,81 @@ static int dentry_isMismatch(struct dentry* dentry, int64 lookup_flags) {
 int32 dentry_monkey_lookup(struct fcontext* fctx) {
 	int error;
 	struct dentry* parent = fctx->fc_dentry;
-	if (fctx->fc_iostruct) {
-		return -EINVAL; // 调用者有责任使用和清空这个字段
-	}
-	if (!dentry_isDir(fctx->fc_dentry)) {
+
+	if (!dentry_isDir(parent)) {
 		/* 不是目录，返回错误 */
 		return -ENOTDIR;
 	}
+
 	if (!parent->d_inode) {
 		/* dentry没有inode，返回错误 */
 		return -ENOENT;
 	}
-	// if (*fctx->fc_path_remaining)
-	//  以lookup意图发下来的fc_path_remaining肯定是有效的
+
 	struct qstr qname;
 	qname.name = fctx->fc_path_remaining;
 	qname.len = strlen(qname.name);
 	qname.hash = full_name_hash(qname.name, qname.len);
 
-	struct dentry* ret_dentry = NULL;
+	struct dentry* next_dentry = NULL;
+
 	/* 1. 先尝试查找已有的dentry */
-	ret_dentry = dentry_lookup(parent, &qname);
-	CHECK_PTR_ERROR(ret_dentry, PTR_ERR(ret_dentry));
-	if (ret_dentry) {
-		error = dentry_isMismatch(ret_dentry, fctx->fc_action_flags);
+	next_dentry = dentry_lookup(parent, &qname);
+	if (PTR_IS_ERR(next_dentry)) { return PTR_ERR(next_dentry); }
+
+	if (next_dentry) {
+		error = dentry_isMismatch(next_dentry, fctx->fc_action_flags);
 		if (error) {
 			/* 如果dentry不匹配，则返回错误 */
-			dentry_unref(ret_dentry);
+			dentry_unref(next_dentry);
 			return error;
 		} else {
-			/* 如果dentry匹配，则返回 */
-			fctx->fc_iostruct = ret_dentry;
+			/* 成功找到匹配的dentry，直接更新fctx */
+			dentry_unref(fctx->fc_dentry); // 释放旧dentry引用
+			fctx->fc_dentry = next_dentry; // 更新为新dentry
 			return 0;
 		}
 	}
 
-	ret_dentry = __find_in_lru_list(parent, &qname);
-	CHECK_PTR_ERROR(ret_dentry, PTR_ERR(ret_dentry));
-	if (ret_dentry) {
-		error = dentry_isMismatch(ret_dentry, fctx->fc_action_flags);
+	/* 2. 尝试从LRU列表复用 */
+	next_dentry = __find_in_lru_list(parent, &qname);
+	if (next_dentry) {
+		error = dentry_isMismatch(next_dentry, fctx->fc_action_flags);
 		if (error) {
-			/* 如果dentry不匹配，则返回错误 */
-			dentry_unref(ret_dentry);
-			return error;
+			/* 不匹配，不使用 */
+			__dentry_free(next_dentry);
+			next_dentry = NULL;
 		} else {
-			/* 如果dentry匹配，则返回 */
-			fctx->fc_iostruct = ret_dentry;
+			/* 成功找到匹配的dentry，直接更新fctx */
+			dentry_unref(fctx->fc_dentry);
+			fctx->fc_dentry = next_dentry;
 			return 0;
 		}
 	}
 
-	/* 5. 如果依然没有找到且允许创建，则创建新dentry */
+	/* 3. 如果需要创建新dentry */
 	if (fctx->fc_action_flags & LOOKUP_CREATE) {
-		/* 创建新dentry */
-		ret_dentry = __dentry_alloc(parent, &qname);
-		if (ret_dentry) {
+		next_dentry = __dentry_alloc(parent, &qname);
+		if (next_dentry) {
 			/* 添加到哈希表 */
-			int32 ret = __dentry_hash(ret_dentry);
-			if (ret == 0) { ret_dentry->d_flags |= DCACHE_HASHED; }
+			int32 ret = __dentry_hash(next_dentry);
+			if (ret == 0) { next_dentry->d_flags |= DCACHE_HASHED; }
+			/* 标记为负向dentry */
+			next_dentry->d_flags |= DCACHE_NEGATIVE;
 
-			/* 标记为负dentry */
-			ret_dentry->d_flags |= DCACHE_NEGATIVE;
+			/* 更新fctx */
+			dentry_unref(fctx->fc_dentry);
+			fctx->fc_dentry = next_dentry;
+			return 0;
 		}
+		return -ENOMEM;
 	}
+
+	/* 找不到且不能创建 */
+	return -ENOENT;
 }
+
+
 
 int32 dentry_monkey(struct fcontext* fctx) {
 	if (fctx->fc_action >= VFS_ACTION_MAX) return -EINVAL;
@@ -1398,7 +1356,7 @@ int32 dentry_monkey(struct fcontext* fctx) {
 }
 // clang-format off
 monkey_intent_handler_t dentry_intent_table[VFS_ACTION_MAX] = {
-    [VFS_ACTION_LOOKUP] = dentry_monkey_lookup, 
+    [VFS_ACTION_LOOKUP] = dentry_monkey_lookup, 	// 处理fc_string的路径字符串，并继续执行path_walk
 	[VFS_ACTION_CREATE] = dentry_monkey, 
 	[VFS_ACTION_MKDIR] = dentry_monkey,
     [VFS_ACTION_RMDIR] = dentry_monkey,         
