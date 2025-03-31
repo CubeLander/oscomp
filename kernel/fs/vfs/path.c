@@ -249,14 +249,16 @@ static bool isAbsolutePath(const char* path) { return path && path[0] == '/'; }
  *
  * Returns: Pointer to allocated path structure on success, NULL on failure
  */
-static struct path* path_acquireRoot(void) {
-	struct path* root_path = kmalloc(sizeof(struct path));
-	if (!root_path) return -ENOMEM;
+static void path_acquireRoot(struct path* path) {
 
-	root_path->dentry = dentry_ref(current_task()->fs->root.dentry);
-	root_path->mnt = mount_ref(current_task()->fs->root.mnt);
+	if (path->dentry) { dentry_unref(path->dentry); }
+	if (path->mnt) { mount_unref(path->mnt); }
 
-	return root_path;
+
+	path->dentry = dentry_ref(current_task()->fs->root.dentry);
+	path->mnt = mount_ref(current_task()->fs->root.mnt);
+
+	return;
 }
 
 /**
@@ -278,27 +280,19 @@ int32 path_monkey(struct fcontext* fctx) {
 	/* Skip leading slash for absolute paths */
 	if (isAbsolutePath(fctx->fc_path_remaining)) {
 		fctx->fc_path_remaining++;
-		if (!fctx->fc_path) {
-			fctx->fc_path = path_acquireRoot();
-			CHECK_PTR_VALID(fctx->fc_path, -ENOMEM);
-		} else {
-			return -EINVAL;
-		}
+		path_acquireRoot(&fctx->fc_path);
 	}
 
 	/* If we don't have a path yet, initialize from appropriate starting point */
-	if (!fctx->fc_path) {
-		fctx->fc_path = kmalloc(sizeof(struct path));
-		if (!fctx->fc_path) return -ENOMEM;
-
+	if (!fctx->fc_dentry) {
 		if (fctx->fc_file) {
 			/* Start from file's path */
-			fctx->fc_path->dentry = dentry_ref(fctx->fc_file->f_path.dentry);
-			fctx->fc_path->mnt = mount_ref(fctx->fc_file->f_path.mnt);
+			fctx->fc_dentry = dentry_ref(fctx->fc_file->f_path.dentry);
+			fctx->fc_mount = mount_ref(fctx->fc_file->f_path.mnt);
 		} else {
 			/* Start from current working directory */
-			fctx->fc_path->dentry = dentry_ref(fctx->fc_task->fs->pwd.dentry);
-			fctx->fc_path->mnt = mount_ref(fctx->fc_task->fs->pwd.mnt);
+			fctx->fc_dentry = dentry_ref(fctx->fc_task->fs->pwd.dentry);
+			fctx->fc_mount = mount_ref(fctx->fc_task->fs->pwd.mnt);
 		}
 	}
 
@@ -319,9 +313,6 @@ int32 path_monkey(struct fcontext* fctx) {
 
 		/* Restore the slash if we modified the string */
 		if (next_slash) { *next_slash = '/'; }
-
-		/* Get current dentry and mount from context */
-		fctx->fc_mount = fctx->fc_path->mnt;
 
 		/* Handle "." - current directory */
 		if (len == 1 && component[0] == '.') {
@@ -356,7 +347,6 @@ int32 path_monkey(struct fcontext* fctx) {
 						dentry_unref(fctx->fc_dentry);
 						fctx->fc_dentry = dentry_ref(parent);
 					}
-
 				}
 			} else {
 				/* Regular parent dentry */
@@ -364,7 +354,6 @@ int32 path_monkey(struct fcontext* fctx) {
 				if (parent && parent != fctx->fc_dentry) {
 					dentry_unref(fctx->fc_dentry);
 					fctx->fc_dentry = dentry_ref(parent);
-
 				}
 			}
 
@@ -387,29 +376,27 @@ int32 path_monkey(struct fcontext* fctx) {
 			continue;
 		}
 
-
 		/* Temporarily terminate component for lookup */
 		if (next_slash) { *next_slash = '\0'; }
 		char* name_save = fctx->fc_path_remaining;
 		fctx->fc_path_remaining = component;
 		MONKEY_WITH_ACTION(fctx, VFS_ACTION_LOOKUP, open_to_lookup_flags(fctx->fc_flags), {
 			int error = dentry_monkey(fctx);
-			if(error) return error;
+			// dentry_monkey会在fctx中生成一个fc_sub_dentry
+			if (error) return error;
 		});
 		/* Restore component */
 		if (next_slash) { *next_slash = '/'; }
 
-
-		if(dentry_isNegative(fctx->fc_sub_dentry)) {
+		if (dentry_isNegative(fctx->fc_sub_dentry)) {
 			MONKEY_WITH_ACTION(fctx, VFS_ACTION_LOOKUP, open_to_lookup_flags(fctx->fc_flags), {
 				int error = inode_monkey(fctx);
-				if(error) return error;
+				if (error) return error;
 			});
 		}
 
-		//next = dentry_acquireRaw(fctx->fc_dentry, component, -1, true, true);
+		// next = dentry_acquireRaw(fctx->fc_dentry, component, -1, true, true);
 		struct dentry* next = fctx->fc_sub_dentry;
-
 
 		/* If negative dentry, ask filesystem to look it up */
 		if (!next->d_inode && fctx->fc_dentry->d_inode && fctx->fc_dentry->d_inode->i_op && fctx->fc_dentry->d_inode->i_op->lookup) {
@@ -431,7 +418,7 @@ int32 path_monkey(struct fcontext* fctx) {
 
 		/* Update path in context */
 		dentry_unref(fctx->fc_dentry);
-		fctx->fc_path->dentry = next;
+		fctx->fc_dentry = next;
 
 		/* Check if this is a mount point */
 		if (dentry_isMountpoint(next)) {
@@ -440,18 +427,14 @@ int32 path_monkey(struct fcontext* fctx) {
 			if (mounted) {
 				/* Cross mount point downward */
 				if (fctx->fc_mount) mount_unref(fctx->fc_mount);
-				fctx->fc_path->mnt = mounted; /* already has incremented ref count */
+				fctx->fc_mount = mounted; /* already has incremented ref count */
 
 				/* Switch to the root of the mounted filesystem */
 				struct dentry* mnt_root = dentry_ref(mounted->mnt_root);
 				dentry_unref(next);
-				fctx->fc_path->dentry = mnt_root;
+				fctx->fc_dentry = mnt_root;
 			}
 		}
-
-		/* Update inode in context */
-		fctx->fc_inode = fctx->fc_path->dentry->d_inode;
-
 		/* Move to next component */
 		if (next_slash) {
 			fctx->fc_path_remaining = next_slash + 1;

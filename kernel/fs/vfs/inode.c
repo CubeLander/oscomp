@@ -704,15 +704,132 @@ static int32 generic_permission(struct inode* inode, int32 mask) {
 }
 
 int32 inode_monkey(struct fcontext* fctx) {
+	int32 error = 0;
+	struct inode* current_inode;
+
+	if (!fctx || !fctx->fc_dentry) { return -EINVAL; }
+
+	/* Get the current inode from the path's dentry */
+	current_inode = fctx->fc_dentry->d_inode;
+	if (!current_inode) { return -ENOENT; }
+
 	switch (fctx->fc_action) {
-	case VFS_ACTION_LOOKUP:
-		struct dentry* found = fctx->fc_inode->i_op->lookup(fctx->fc_inode, fctx->fc_sub_dentry,0);
+	case VFS_ACTION_LOOKUP: {
+		/* Handle lookup action for negative dentries */
+		if (!fctx->fc_sub_dentry || !current_inode->i_op || !current_inode->i_op->lookup) { return -ENOTDIR; }
 
+		/* Call filesystem-specific lookup method */
+		struct dentry* found = current_inode->i_op->lookup(current_inode, fctx->fc_sub_dentry, fctx->fc_action_flags);
 
-		/* code */
+		/* Handle lookup errors */
+		if (PTR_IS_ERROR(found)) { return PTR_ERR(found); }
+
+		/* If lookup succeeded and found a valid dentry with inode */
+		if (found) {
+			if (found->d_inode) {
+				/* Instantiate the dentry with the found inode */
+				error = dentry_instantiate(fctx->fc_sub_dentry, inode_ref(found->d_inode));
+				dentry_unref(found);
+				if (error) { return error; }
+			} else {
+				/* Found dentry is also negative, just use it */
+				dentry_unref(found);
+			}
+		}
+
+		/* Release old dentry reference and update with sub_dentry */
+		if (fctx->fc_dentry) { dentry_unref(fctx->fc_dentry); }
+		fctx->fc_dentry = fctx->fc_sub_dentry;
+		fctx->fc_sub_dentry = NULL;
+
+		break;
+	}
+
+	case VFS_ACTION_CREATE:
+		/* Call create method if available */
+		if (!current_inode->i_op || !current_inode->i_op->create) { return -EACCES; }
+
+		/* Check if directory is writable */
+		error = inode_permission(current_inode, MAY_WRITE | MAY_EXEC);
+		if (error) { return error; }
+
+		/* Create the new file */
+		struct inode* new_inode = current_inode->i_op->create(current_inode, fctx->fc_sub_dentry, fctx->fc_mode, (fctx->fc_flags & O_EXCL) != 0);
+		if (PTR_IS_ERROR(new_inode)) { return PTR_ERR(new_inode); }
+
+		/* Attach the new inode to the dentry */
+		if (new_inode) {
+			error = dentry_instantiate(fctx->fc_sub_dentry, new_inode);
+			if (error) {
+				inode_unref(new_inode);
+				return error;
+			}
+
+			/* Release old dentry reference */
+			if (fctx->fc_dentry) { dentry_unref(fctx->fc_dentry); }
+			/* Update with sub_dentry */
+			fctx->fc_dentry = dentry_ref(fctx->fc_sub_dentry);
+
+			/* Reset fc_sub_dentry */
+			fctx->fc_sub_dentry = NULL;
+		}
+
+		break;
+
+	case VFS_ACTION_MKDIR:
+		/* Handle directory creation */
+		error = inode_mkdir(current_inode, fctx->fc_sub_dentry, fctx->fc_mode);
+		if (error == 0) {
+			if (fctx->fc_dentry) { dentry_unref(fctx->fc_dentry); }
+			fctx->fc_dentry = dentry_ref(fctx->fc_sub_dentry);
+			fctx->fc_sub_dentry = NULL;
+		}
+		break;
+
+	case VFS_ACTION_UNLINK:
+		/* Handle file unlinking */
+		if (!current_inode->i_op || !current_inode->i_op->unlink) { return -EPERM; }
+
+		error = inode_permission(current_inode, MAY_WRITE | MAY_EXEC);
+		if (error) { return error; }
+
+		error = current_inode->i_op->unlink(current_inode, fctx->fc_sub_dentry);
+		if (error == 0 && fctx->fc_sub_dentry) {
+			/* After successful unlink, sub_dentry becomes invalid */
+			fctx->fc_sub_dentry = NULL;
+		}
+		break;
+
+	case VFS_ACTION_RMDIR:
+		/* Handle directory removal */
+		error = inode_rmdir(current_inode, fctx->fc_sub_dentry);
+		if (error == 0 && fctx->fc_sub_dentry) {
+			/* After successful removal, sub_dentry becomes invalid */
+			fctx->fc_sub_dentry = NULL;
+		}
+		break;
+
+	case VFS_ACTION_SYMLINK:
+		/* Handle symlink creation */
+		if (!current_inode->i_op || !current_inode->i_op->symlink) { return -EPERM; }
+
+		error = inode_permission(current_inode, MAY_WRITE | MAY_EXEC);
+		if (error) { return error; }
+
+		error = current_inode->i_op->symlink(current_inode, fctx->fc_sub_dentry, fctx->fc_input_string);
+
+		if (error == 0) {
+			if (fctx->fc_dentry) { dentry_unref(fctx->fc_dentry); }
+			fctx->fc_dentry = dentry_ref(fctx->fc_sub_dentry);
+			fctx->fc_sub_dentry = NULL;
+		}
 		break;
 
 	default:
+		/* Unhandled action */
+		error = -ENOSYS;
 		break;
 	}
+
+	return error;
 }

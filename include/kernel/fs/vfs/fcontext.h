@@ -20,8 +20,13 @@ struct fcontext{
 	char* fc_path_remaining;
 	int32 fc_fd;
 	struct file* fc_file;
-	struct path* fc_path;
-	struct inode* fc_inode;
+	union {
+		struct path fc_path;
+		struct {
+			struct dentry* fc_dentry;
+			struct vfsmount* fc_mount;
+		};
+	};
 	// 注意，这里的obj_path会随着fc_path_remaining的变化而变化
 	// 直到*fc_path_remaining == 0
 
@@ -54,8 +59,6 @@ struct fcontext{
 	// 子任务派发和返回在栈上就行了
 };
 
-#define fc_mount fc_path->mnt
-#define fc_dentry fc_path->dentry
 // clang-format off
 
 #define MONKEY_WITH_ACTION(ctx, action_temp,flag_temp, task_block) do { \
