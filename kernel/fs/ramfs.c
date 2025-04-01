@@ -325,6 +325,70 @@ static int32 ramfs_intent_create_superblock(struct fcontext* fctx) {
 }
 
 /**
+ * ramfs_intent_mount_bind - Handle bind mount operations for ramfs
+ * @fctx: File system context with mount parameters
+ *
+ * Creates a bind mount that makes the content of the source directory
+ * visible at the mount point. Unlike a normal mount which creates a new
+ * filesystem instance, bind mounts just create a new view of an existing
+ * directory tree.
+ *
+ * The source dentry is in fctx->fc_iostruct from do_mount.
+ *
+ * Returns 0 on success, negative error code on failure.
+ */
+static int32 ramfs_intent_mount_bind(struct fcontext* fctx) {
+    /* Get source dentry which was passed in fc_iostruct */
+    struct dentry* source_dentry = (struct dentry*)fctx->fc_iostruct;
+    uint64 flags = fctx->user_flags;
+    const char* source_path = (const char*)fctx->user_buf;
+    
+    /* Validate source dentry */
+    if (!source_dentry || !source_dentry->d_inode) {
+        return -EINVAL;
+    }
+    
+    /* Ensure source is a directory */
+    if (!S_ISDIR(source_dentry->d_inode->i_mode)) {
+        return -ENOTDIR;
+    }
+    
+    /* Get the superblock from the source mount point */
+    struct superblock* sb = source_dentry->d_inode->i_superblock;
+    if (!sb) {
+        return -EINVAL;
+    }
+    
+    /* Get the mount point where we're binding to */
+    struct dentry* target_dentry = fctx->fc_dentry;
+    if (!target_dentry || !target_dentry->d_inode || 
+        !S_ISDIR(target_dentry->d_inode->i_mode)) {
+        return -ENOTDIR;
+    }
+    
+    /* Create a new mount structure for the bind mount */
+    struct vfsmount* mnt = superblock_acquireMount(sb, flags, source_path);
+    if (!mnt) {
+        return -ENOMEM;
+    }
+    
+    /* Set up the mount point */
+    mnt->mnt_root = dentry_ref(source_dentry);
+    
+    /* Configure mount path (where it's mounted) */
+    mnt->mnt_path.dentry = dentry_ref(target_dentry);
+    mnt->mnt_path.mnt = fctx->fc_mount ? mount_ref(fctx->fc_mount) : NULL;
+    
+    /* Mark the target as a mount point */
+    target_dentry->d_flags |= DCACHE_MOUNTED;
+    
+    /* Store the created mount in the context */
+    fctx->fc_mount = mnt;
+    
+    return 0;
+}
+
+/**
  * ramfs_intent_table - Maps action IDs to ramfs-specific handlers
  */
 static monkey_intent_handler_t ramfs_intent_table[VFS_ACTION_MAX] = {
