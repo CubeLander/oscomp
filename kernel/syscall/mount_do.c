@@ -35,17 +35,11 @@ int64 do_mount(const char* source, const char* target, const char* fstype_name, 
     fctx.fc_task = current_task();
     fctx.fc_fstype = type;
 
-    /* Resolve the mount point path */
+    /* Resolve the mount point path to fc_dentry, 这个过程中下层会确认填入的fc_dentry是dir*/
     ret = MONKEY_WITH_ACTION(path_monkey, &fctx, VFS_ACTION_PATHWALK, LOOKUP_DIRECTORY);
     if (ret < 0) {
         fcontext_cleanup(&fctx);
         return ret;
-    }
-
-    /* Verify the dentry is a directory */
-    if (!dentry_isDir(fctx.fc_dentry)) {
-        fcontext_cleanup(&fctx);
-        return -ENOTDIR;
     }
 
     /* Perform the mount operation */
