@@ -6,7 +6,7 @@
 /**
  * Handlers for superblock operations
  */
-static int32 ramfs_alloc_inode(struct fcontext* fctx);
+static int32 ramfs_intent_alloc_inode(struct fcontext* fctx);
 static int32 ramfs_intent_destroy_inode(struct fcontext* fctx);
 static int32 ramfs_intent_write_inode(struct fcontext* fctx);
 static int32 ramfs_intent_evict_inode(struct fcontext* fctx);
@@ -112,7 +112,7 @@ static int32 ramfs_intent_mount(struct fcontext* fctx) {
  * Implementation of superblock operation handlers using the intent system
  */
 
-static int32 ramfs_alloc_inode(struct fcontext* fctx) {
+static int32 ramfs_intent_alloc_inode(struct fcontext* fctx) {
 	struct superblock* sb = fctx->fc_superblock;
 
 	/* Allocate a new inode */
@@ -286,7 +286,7 @@ static int32 ramfs_intent_create_superblock(struct fcontext* fctx) {
 	fctx->fc_superblock = sb;
 
 	/* 创建根inode */
-	int32 ret = ramfs_alloc_inode(fctx);
+	int32 ret = MONKEY_WITH_ACTION(ramfs_monkey, fctx, SB_ALLOC_INODE, 0);
 	if (ret < 0) {
 		return ret;
 	}
@@ -310,6 +310,7 @@ static int32 ramfs_intent_create_superblock(struct fcontext* fctx) {
 		return -ENOMEM;
 	}
 	struct dentry* root_dentry = dentry_alloc(NULL, root_name);
+	dentry_instantiate(root_dentry, root_inode);
 	qstr_free(root_name);
 
 	/* 设置superblock的根 */
@@ -329,13 +330,14 @@ static int32 ramfs_intent_create_superblock(struct fcontext* fctx) {
 static monkey_intent_handler_t ramfs_intent_table[VFS_ACTION_MAX] = {
     /* Common filesystem operations */
     [FS_MOUNT] = ramfs_intent_mount,
+	[FS_MOUNT_BIND] = ramfs_intent_mount_bind,
     [FS_UMOUNT] = ramfs_intent_umount,
     [FS_INITFS] = ramfs_intent_initfs,
     [FS_EXITFS] = ramfs_intent_exitfs,
     [FS_CREATE_SB] = ramfs_intent_create_superblock,
 
     /* Superblock operations */
-    [SB_ALLOC_INODE] = ramfs_alloc_inode,
+    [SB_ALLOC_INODE] = ramfs_intent_alloc_inode,
     [SB_DESTROY_INODE] = ramfs_intent_destroy_inode,
     [SB_WRITE_INODE] = ramfs_intent_write_inode,
     [SB_EVICT_INODE] = ramfs_intent_evict_inode,
