@@ -248,7 +248,7 @@ void* alloc_kernel_stack(){
  * Allocates memory and copies the given string into it.
  * Returns the pointer to the new string or NULL on allocation failure.
  */
-char *kstrdup(const char *s, uint32 gfp)
+char *kstrdup(const char *s)
 {
     size_t len;
     char *buf;

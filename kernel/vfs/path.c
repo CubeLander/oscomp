@@ -250,14 +250,27 @@ static bool isAbsolutePath(const char* path) { return path && path[0] == '/'; }
  * Returns: Pointer to allocated path structure on success, NULL on failure
  */
 static void path_acquireRoot(struct path* path) {
+    /* 释放现有引用 */
+    if (path->dentry) { dentry_unref(path->dentry); }
+    if (path->mnt) { mount_unref(path->mnt); }
 
-	if (path->dentry) { dentry_unref(path->dentry); }
-	if (path->mnt) { mount_unref(path->mnt); }
-
-	path->dentry = dentry_ref(current_task()->fs->root.dentry);
-	path->mnt = mount_ref(current_task()->fs->root.mnt);
-
-	return;
+    /* 获取virtual root */
+    struct dentry* vroot = get_virtual_root_dentry();
+    
+    /* 检查virtual root是否有挂载点 */
+    if (vroot->d_flags & DCACHE_MOUNTED && vroot->d_mount) {
+        /* 有挂载点，直接返回挂载的根文件系统 */
+        path->dentry = dentry_ref(vroot->d_mount->mnt_root);
+        path->mnt = mount_ref(vroot->d_mount);
+        
+        /* 释放virtual root的引用，因为我们直接使用挂载点 */
+        dentry_unref(vroot);
+    } else {
+        /* 没有挂载点，返回virtual root本身 */
+        /* 这种情况应该只在系统初始化过程中出现 */
+        path->dentry = vroot; /* 已经增加了引用计数 */
+        path->mnt = NULL;
+    }
 }
 
 /**
@@ -349,10 +362,10 @@ int32 path_monkey(struct fcontext* fctx) {
     if (!fctx || !fctx->fc_path_remaining) return -EINVAL;
 
     /* Determine operation intent */
-    is_create_intent = (fctx->fc_action == VFS_ACTION_CREATE || 
-                        fctx->fc_action == VFS_ACTION_MKDIR || 
-                        fctx->fc_action == VFS_ACTION_MKNOD ||
-                        ((fctx->fc_action == VFS_ACTION_OPEN) && (fctx->user_flags & O_CREAT)));
+    is_create_intent = (fctx->fc_action == VFS_CREATE || 
+                        fctx->fc_action == VFS_MKDIR || 
+                        fctx->fc_action == VFS_MKNOD ||
+                        ((fctx->fc_action == VFS_OPEN) && (fctx->user_flags & O_CREAT)));
 
     /* Handle absolute path */
     if (isAbsolutePath(fctx->fc_path_remaining)) {
@@ -360,16 +373,20 @@ int32 path_monkey(struct fcontext* fctx) {
         path_acquireRoot(&fctx->fc_path);
     }
 
-    /* Initialize dentry and mount if needed */
-    if (!fctx->fc_dentry) {
-        if (fctx->fc_file) {
-            fctx->fc_dentry = dentry_ref(fctx->fc_file->f_path.dentry);
-            fctx->fc_mount = mount_ref(fctx->fc_file->f_path.mnt);
-        } else {
-            fctx->fc_dentry = dentry_ref(fctx->fc_task->fs->pwd.dentry);
-            fctx->fc_mount = mount_ref(fctx->fc_task->fs->pwd.mnt);
+    /* Immediately check if virtual root is a mount point and cross if needed */
+    if (fctx->fc_dentry->d_flags & DCACHE_MOUNTED) {
+        struct vfsmount* mounted = dentry_lookupMount(fctx->fc_dentry);
+        if (mounted) {
+            if (fctx->fc_mount) mount_unref(fctx->fc_mount);
+            fctx->fc_mount = mount_ref(mounted);
+
+            /* Switch to mounted filesystem's root */
+            struct dentry* mnt_root = dentry_ref(mounted->mnt_root);
+            dentry_unref(fctx->fc_dentry);
+            fctx->fc_dentry = mnt_root;
         }
     }
+
 
     /* Main path resolution loop */
     while (true) {
@@ -389,7 +406,7 @@ int32 path_monkey(struct fcontext* fctx) {
         }
 
         /* Process component with appropriate flags */
-        ret = MONKEY_WITH_ACTION(dentry_monkey, fctx, DENTRY_ACTION_LOOKUP, lookup_flags);
+        ret = MONKEY_WITH_ACTION(dentry_monkey, fctx, DENTRY_LOOKUP, lookup_flags);
 		/* dentry_monkey, PATHWALK 会将fc_dentry和fc_string解析为下一级的fc_dentry */
         if (ret < 0) return ret;
 

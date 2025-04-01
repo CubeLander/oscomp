@@ -1,3 +1,8 @@
+对于fcontext的动作变换，记录在：
+【金山文档 | WPS云文档】 工作簿
+https://kdocs.cn/l/cbByiiKcb4zY
+
+
 ## 主线任务
 
 ### 对POSIX支持的远期目标

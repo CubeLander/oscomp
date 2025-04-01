@@ -9,6 +9,46 @@
 static struct dentry* __dentry_alloc(struct dentry* parent, const struct qstr* name);
 static void __dentry_free(struct dentry* dentry);
 
+static struct dentry* virtual_root_dentry = NULL;
+
+struct dentry* get_virtual_root_dentry(void) {
+    if (!virtual_root_dentry) {
+        /* Initialize the virtual root dentry */
+        virtual_root_dentry = kzalloc(sizeof(struct dentry));
+        if (!virtual_root_dentry) {
+            return NULL; /* Memory allocation failed */
+        }
+        
+        /* Set up minimal required fields */
+        atomic_set(&virtual_root_dentry->d_refcount, 1);
+        virtual_root_dentry->d_parent = virtual_root_dentry; /* Self-referential */
+        virtual_root_dentry->d_flags = DCACHE_MOUNTED; /* Always treated as a mount point */
+        
+        /* Create a name for the virtual root */
+        struct qstr* root_name = kzalloc(sizeof(struct qstr));
+        if (!root_name) {
+            kfree(virtual_root_dentry);
+            virtual_root_dentry = NULL;
+            return NULL;
+        }
+        
+        root_name->name = kstrdup("");  /* Empty string for the virtual root */
+        root_name->len = 0;
+        root_name->hash = 0;
+        virtual_root_dentry->d_name = root_name;
+        
+        /* Initialize lists */
+        INIT_LIST_HEAD(&virtual_root_dentry->d_childList);
+        
+        /* No inode attached - this is purely a virtual node */
+    }
+    
+    return dentry_ref(virtual_root_dentry);
+}
+
+
+
+
 struct dentry* dentry_ref(struct dentry* dentry) {
 	if (!dentry) return NULL;
 
@@ -270,15 +310,15 @@ int32 dentry_monkey_lookup(struct fcontext* fctx) {
 }
 
 int32 dentry_monkey(struct fcontext* fctx) {
-	if (fctx->fc_action >= VFS_ACTION_MAX) return -EINVAL;
+	if (fctx->fc_action >= VFS_MAX) return -EINVAL;
 	monkey_intent_handler_t handler = dentry_intent_table[fctx->fc_action];
 	if (!handler) return -ENOTSUP;
 
 	return handler(fctx);
 }
 // clang-format off
-monkey_intent_handler_t dentry_intent_table[VFS_ACTION_MAX] = {
-    [DENTRY_ACTION_LOOKUP] = dentry_monkey_lookup, 	// 处理fc_string的路径字符串，并继续执行path_walk
+monkey_intent_handler_t dentry_intent_table[VFS_MAX] = {
+    [DENTRY_LOOKUP] = dentry_monkey_lookup, 	// 处理fc_string的路径字符串，并继续执行path_walk
 
 };
 // clang-format on

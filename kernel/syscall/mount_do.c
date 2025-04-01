@@ -7,48 +7,65 @@
 #include <kernel/util/string.h>
 #include <kernel/vfs.h>
 
-/**
- * do_mount - Implementation of mount operation using fcontext framework
- * @source: Device name or directory path to mount
- * @target: Directory where to mount
- * @fstype_name: Filesystem type
- * @flags: Mount flags
- * @data: Data specific to the filesystem type
- *
- * Returns 0 on success, negative error code on failure.
- */
 int64 do_mount(const char* source, const char* target, const char* fstype_name, uint64 flags, void* data) {
-    struct fcontext fctx = {0};
-    int32 ret;
-
     /* Look up filesystem type */
     struct fstype* type = fstype_lookup(fstype_name);
     if (!type) return -ENODEV;
-
-    /* Set up the context for mount operation */
-    fctx.user_string = target;
-    fctx.fc_path_remaining = (char*)target;
-    fctx.fc_action = VFS_ACTION_NONE;
-    fctx.user_flags = flags;
-    fctx.user_buf = (void*)source;
-    fctx.fc_iostruct = data;
-    fctx.fc_task = current_task();
-    fctx.fc_fstype = type;
-
-    /* Resolve the mount point path to fc_dentry, 这个过程中下层会确认填入的fc_dentry是dir*/
-    ret = MONKEY_WITH_ACTION(path_monkey, &fctx, VFS_ACTION_PATHWALK, LOOKUP_DIRECTORY);
+    
+    /* Check if this is a bind mount request */
+    bool is_bind_mount = (flags & MS_BIND) != 0;
+    
+    /* First resolve the source path */
+    struct fcontext source_ctx = {
+        .path_string = source,
+        .fc_path_remaining = (char*)source,
+        .fc_task = current_task()
+    };
+    
+    /* Use appropriate lookup flags based on mount type */
+    uint32 source_lookup_flags = is_bind_mount ? LOOKUP_DIRECTORY : 0;
+    
+    int32 ret = MONKEY_WITH_ACTION(path_monkey, &source_ctx, PATH_LOOKUP, source_lookup_flags);
     if (ret < 0) {
+        fcontext_cleanup(&source_ctx);
+        return ret;
+    }
+    
+    /* Set up the context for target path resolution and mount operation */
+    struct fcontext fctx = {
+        .path_string = target,
+        .fc_path_remaining = (char*)target,
+        .user_flags = flags,
+        .user_buf = data,
+        .fc_task = current_task(),
+        .fc_fstype = type
+    };
+    
+    /* Store source dentry with reference counting (for both regular and bind mounts) */
+    fctx.fc_iostruct = dentry_ref(source_ctx.fc_dentry);
+    
+    /* Clean up source context since we've captured what we need */
+    fcontext_cleanup(&source_ctx);
+    
+    /* Resolve the mount point path to fc_dentry */
+    ret = MONKEY_WITH_ACTION(path_monkey, &fctx, PATH_LOOKUP, LOOKUP_DIRECTORY);
+    if (ret < 0) {
+        dentry_unref(fctx.fc_iostruct);
         fcontext_cleanup(&fctx);
         return ret;
     }
-
-    /* Perform the mount operation */
-    ret = MONKEY_WITH_ACTION(type->fs_monkey, &fctx, FS_ACTION_MOUNT, 0);
-
+    
+    /* Perform the mount operation with appropriate action */
+    int32 mount_action = is_bind_mount ? FS_MOUNT_BIND : FS_MOUNT;
+    ret = MONKEY_WITH_ACTION(type->fs_monkey, &fctx, mount_action, flags);
+    
     /* Clean up and return */
+    dentry_unref(fctx.fc_iostruct);
     fcontext_cleanup(&fctx);
     return ret;
 }
+
+
 
 /**
  * do_umount2 - Implementation of unmount operation using fcontext framework
@@ -63,13 +80,13 @@ int64 do_umount2(const char* target, int32 flags) {
     int32 ret;
 
     /* Set up context for path resolution */
-    fctx.user_string = target;
+    fctx.path_string = target;
     fctx.fc_path_remaining = (char*)target;
     fctx.user_flags = flags;
     fctx.fc_task = current_task();
 
     /* Resolve the mountpoint path */
-    ret = MONKEY_WITH_ACTION(path_monkey, &fctx, VFS_ACTION_PATHWALK, LOOKUP_DIRECTORY);
+    ret = MONKEY_WITH_ACTION(path_monkey, &fctx, PATH_LOOKUP, LOOKUP_DIRECTORY);
     if (ret < 0) {
         fcontext_cleanup(&fctx);
         return ret;
@@ -106,11 +123,11 @@ int64 do_umount2(const char* target, int32 flags) {
 
     /* Set up filesystem specific context for umount */
     fctx.fc_mount = mnt;
-    fctx.fc_action = VFS_ACTION_UMOUNT;
+    fctx.fc_action = VFS_UMOUNT;
     fctx.fc_action_flags = flags;
 
     /* Call the filesystem's umount handler */
-    ret = MONKEY_WITH_ACTION(mnt->mnt_superblock->s_fstype->fs_monkey, &fctx, FS_ACTION_UMOUNT, flags);
+    ret = MONKEY_WITH_ACTION(mnt->mnt_superblock->s_fstype->fs_monkey, &fctx, FS_UMOUNT, flags);
     
     /* Actually unmount it */
     if (ret == 0) {
@@ -144,12 +161,12 @@ int64 do_pivot_root(const char* new_root, const char* put_old) {
         return -EPERM;
 
     /* Set up context for new_root path resolution */
-    new_root_ctx.user_string = new_root;
+    new_root_ctx.path_string = new_root;
     new_root_ctx.fc_path_remaining = (char*)new_root;
     new_root_ctx.fc_task = current_task();
 
     /* Resolve the new_root path */
-    ret = MONKEY_WITH_ACTION(path_monkey, &new_root_ctx, VFS_ACTION_PATHWALK, LOOKUP_DIRECTORY);
+    ret = MONKEY_WITH_ACTION(path_monkey, &new_root_ctx, PATH_LOOKUP, LOOKUP_DIRECTORY);
     if (ret < 0) {
         fcontext_cleanup(&new_root_ctx);
         return ret;
@@ -162,7 +179,7 @@ int64 do_pivot_root(const char* new_root, const char* put_old) {
     }
 
     /* Set up context for put_old path resolution relative to new_root */
-    put_old_ctx.user_string = put_old;
+    put_old_ctx.path_string = put_old;
     put_old_ctx.fc_path_remaining = (char*)put_old;
     put_old_ctx.fc_task = current_task();
     
@@ -171,7 +188,7 @@ int64 do_pivot_root(const char* new_root, const char* put_old) {
     put_old_ctx.fc_mount = mount_ref(new_root_ctx.fc_mount);
 
     /* Resolve the put_old path */
-    ret = MONKEY_WITH_ACTION(path_monkey, &put_old_ctx, VFS_ACTION_PATHWALK, LOOKUP_DIRECTORY);
+    ret = MONKEY_WITH_ACTION(path_monkey, &put_old_ctx, PATH_LOOKUP, LOOKUP_DIRECTORY);
     if (ret < 0) {
         fcontext_cleanup(&new_root_ctx);
         fcontext_cleanup(&put_old_ctx);

@@ -1,51 +1,52 @@
 #include <kernel/vfs.h>
-
-
-/**
- * Generic filesystem intent handlers for different operations
- */
-static int32 fs_intent_mount(struct fcontext* fctx);
-static int32 fs_intent_umount(struct fcontext* fctx);
-static int32 fs_intent_initfs(struct fcontext* fctx);
-static int32 fs_intent_exitfs(struct fcontext* fctx);
+#include <kernel/mmu.h>
 
 /**
- * Filesystem intent table - maps action IDs to handler functions
+ * Implementation of superblock operation handlers using the intent system
  */
-static monkey_intent_handler_t fs_intent_table[VFS_ACTION_MAX] = {
-    [FS_ACTION_MOUNT]  = fs_intent_mount,
-    [FS_ACTION_UMOUNT] = fs_intent_umount,
-    [FS_ACTION_INITFS] = fs_intent_initfs,
-    [FS_ACTION_EXITFS] = fs_intent_exitfs,
-    /* Additional handlers can be added here */
-};
 
-/**
- * fs_monkey - Generic filesystem context handler
- * @fctx: Filesystem context
- *
- * Dispatches filesystem operations to the appropriate handler
- * based on the action specified in the context.
- *
- * Returns 0 on success, negative error code on failure.
- */
-int32 fs_monkey(struct fcontext* fctx) {
-    if (!fctx || !fctx->fc_fstype) {
-        return -EINVAL;
-    }
+int32 generic_alloc_inode(struct fcontext* fctx) {
+	struct superblock* sb = fctx->fc_superblock;
 
-    /* Validate action is within range */
-    if (fctx->fc_action >= VFS_ACTION_MAX || fctx->fc_action < 0) {
-        return -EINVAL;
-    }
+	/* Allocate a new inode */
+	struct inode* inode = kzalloc(sizeof(struct inode));
+	if (!inode) {
+		return -ENOMEM;
+	}
 
-    /* Get the handler for this action */
-    monkey_intent_handler_t handler = fs_intent_table[fctx->fc_action];
-    
-    /* Call the handler if available, otherwise return error */
-    if (handler) {
-        return handler(fctx);
-    }
-    
-    return -ENOSYS; /* Function not implemented */
+	/* Initialize inode */
+	atomic_set(&inode->i_refcount, 1);
+	inode->i_superblock = sb;
+	inode->i_ino = atomic64_inc_return(&sb->s_next_ino);
+	atomic_inc(&sb->s_ninodes);
+
+	/* Initialize locks and lists */
+	spin_lock_init(&inode->i_lock);
+	INIT_LIST_HEAD(&inode->i_dentryList);
+	spin_lock_init(&inode->i_dentryList_lock);
+
+	/* Add to superblock's inode list */
+	spin_lock(&sb->s_list_all_inodes_lock);
+	list_add(&inode->i_s_list_node, &sb->s_list_all_inodes);
+	spin_unlock(&sb->s_list_all_inodes_lock);
+
+	/* Store the result in the context */
+	fctx->fc_iostruct = inode;
+
+	return 0;
+}
+
+
+int32 generic_destroy_inode(struct fcontext* fctx) {
+	struct inode* inode = fctx->fc_dentry->d_inode;
+
+	/* Remove from superblock's inode list */
+	spin_lock(&inode->i_superblock->s_list_all_inodes_lock);
+	list_del(&inode->i_s_list_node);
+	spin_unlock(&inode->i_superblock->s_list_all_inodes_lock);
+
+	/* Free inode memory */
+	kfree(inode);
+
+	return 0;
 }

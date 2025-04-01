@@ -358,7 +358,7 @@ int32 fd_monkey_close(struct fcontext* fctx) {
  * @return: 0 on success or no fd in ctx, negative error code on unexpected failures
  */
 int32 fd_monkey(struct fcontext* fctx) {
-	if (fctx->fc_action >= VFS_ACTION_MAX) return -EINVAL;
+	if (fctx->fc_action >= VFS_MAX) return -EINVAL;
 	monkey_intent_handler_t handler = fd_intent_table[fctx->fc_action];
 	if (!handler) return -ENOTSUP;
 	return handler(fctx);
@@ -366,8 +366,8 @@ int32 fd_monkey(struct fcontext* fctx) {
 	return 0;
 }
 
-monkey_intent_handler_t fd_intent_table[VFS_ACTION_MAX] = {
-    [FD_ACTION_OPEN] = fd_monkey_open, // 处理fc_string的路径字符串，并继续执行path_walk
-    [FD_ACTION_CLOSE] = fd_monkey_close,
+monkey_intent_handler_t fd_intent_table[VFS_MAX] = {
+    [FD_OPEN] = fd_monkey_open, // 处理fc_string的路径字符串，并继续执行path_walk
+    [FD_CLOSE] = fd_monkey_close,
 
 };

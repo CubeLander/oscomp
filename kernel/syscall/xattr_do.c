@@ -25,13 +25,10 @@ int32 do_removexattr(const char* path, int fd, const char* name, int lookup_flag
 	if (!name) return -EINVAL;
 
 	/* Set up common fields in the context */
-	fctx.fc_action = VFS_ACTION_REMOVEXATTR;
+	fctx.fc_action = VFS_REMOVEXATTR;
 	fctx.fc_task = current_task();
 
-	/* Set up name in string context */
-	fctx.fc_charbuf = (char*)name;
-	fctx.fc_strlen = strlen(name);
-	fctx.fc_hash = full_name_hash(name, fctx.fc_strlen);
+
 
 	/* Choose between fd-based or path-based access */
 	if (fd >= 0) {
@@ -39,19 +36,19 @@ int32 do_removexattr(const char* path, int fd, const char* name, int lookup_flag
 		fctx.fc_fd = fd;
 
 		/* Get the file from the file descriptor */
-		ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_ACTION_OPEN, 0);
+		ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_OPEN, 0);
 		if (ret < 0) {
 			fcontext_cleanup(&fctx);
 			return ret;
 		}
 	} else if (path && *path) {
 		/* Using path */
-		fctx.user_string = path;
+		fctx.path_string = path;
 		fctx.fc_path_remaining = (char*)path;
 		fctx.fc_action_flags = lookup_flags;
 
 		/* Resolve the path */
-		ret = MONKEY_WITH_ACTION(path_monkey, &fctx, PATH_ACTION_LOOKUP, lookup_flags);
+		ret = MONKEY_WITH_ACTION(path_monkey, &fctx, PATH_LOOKUP, lookup_flags);
 		if (ret < 0) {
 			fcontext_cleanup(&fctx);
 			return ret;
@@ -67,8 +64,12 @@ int32 do_removexattr(const char* path, int fd, const char* name, int lookup_flag
 		return -EINVAL;
 	}
 
+	/* Set up name in string context */
+	fctx.fc_charbuf = (char*)name;
+	fctx.fc_strlen = strlen(name);
+	fctx.fc_hash = full_name_hash(name, fctx.fc_strlen);
 	/* Perform the xattr operation on the inode */
-	ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_ACTION_REMOVEXATTR, 0);
+	ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_REMOVEXATTR, 0);
 
 	/* Clean up and return the result */
 	fcontext_cleanup(&fctx);
@@ -96,7 +97,7 @@ ssize_t do_listxattr(const char* path, int fd, char* list, size_t size, int look
 	/* Set up common fields in the context */
 	fctx.user_buf = list;
 	fctx.user_buf_size = size;
-	fctx.fc_action = VFS_ACTION_LISTXATTR;
+	fctx.fc_action = VFS_LISTXATTR;
 	fctx.fc_task = current_task();
 
 	/* Choose between fd-based or path-based access */
@@ -105,19 +106,19 @@ ssize_t do_listxattr(const char* path, int fd, char* list, size_t size, int look
 		fctx.fc_fd = fd;
 
 		/* Get the file from the file descriptor */
-		ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_ACTION_OPEN, 0);
+		ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_OPEN, 0);
 		if (ret < 0) {
 			fcontext_cleanup(&fctx);
 			return ret;
 		}
 	} else if (path && *path) {
 		/* Using path */
-		fctx.user_string = path;
+		fctx.path_string = path;
 		fctx.fc_path_remaining = (char*)path;
 		fctx.fc_action_flags = lookup_flags;
 
 		/* Resolve the path */
-		ret = MONKEY_WITH_ACTION(path_monkey, &fctx, PATH_ACTION_LOOKUP, lookup_flags);
+		ret = MONKEY_WITH_ACTION(path_monkey, &fctx, PATH_LOOKUP, lookup_flags);
 		if (ret < 0) {
 			fcontext_cleanup(&fctx);
 			return ret;
@@ -134,7 +135,7 @@ ssize_t do_listxattr(const char* path, int fd, char* list, size_t size, int look
 	}
 
 	/* Perform the xattr operation on the inode */
-	ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_ACTION_LISTXATTR, 0);
+	ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_LISTXATTR, 0);
 
 	/* Clean up and return the result */
 	fcontext_cleanup(&fctx);
@@ -168,7 +169,7 @@ ssize_t do_getxattr(const char* path, int fd, const char* name, void* value, siz
 	/* Set up common fields in the context */
 	fctx.user_buf = value;
 	fctx.user_buf_size = size;
-	fctx.fc_action = VFS_ACTION_GETXATTR;
+	fctx.fc_action = VFS_GETXATTR;
 	fctx.fc_task = current_task();
 
 	/* Set up name in string context */
@@ -182,19 +183,19 @@ ssize_t do_getxattr(const char* path, int fd, const char* name, void* value, siz
 		fctx.fc_fd = fd;
 
 		/* Get the file from the file descriptor */
-		ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_ACTION_OPEN, 0);
+		ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_OPEN, 0);
 		if (ret < 0) {
 			fcontext_cleanup(&fctx);
 			return ret;
 		}
 	} else if (path && *path) {
 		/* Using path */
-		fctx.user_string = path;
+		fctx.path_string = path;
 		fctx.fc_path_remaining = (char*)path;
 		fctx.fc_action_flags = lookup_flags;
 
 		/* Resolve the path */
-		ret = MONKEY_WITH_ACTION(path_monkey, &fctx, PATH_ACTION_LOOKUP, lookup_flags);
+		ret = MONKEY_WITH_ACTION(path_monkey, &fctx, PATH_LOOKUP, lookup_flags);
 		if (ret < 0) {
 			fcontext_cleanup(&fctx);
 			return ret;
@@ -211,7 +212,7 @@ ssize_t do_getxattr(const char* path, int fd, const char* name, void* value, siz
 	}
 
 	/* Perform the xattr operation on the inode */
-	ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_ACTION_GETXATTR, 0);
+	ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_GETXATTR, 0);
 
 	/* Clean up and return the result */
 	fcontext_cleanup(&fctx);
@@ -245,7 +246,7 @@ int64 do_setxattr(const char* path, int fd, const char* name, const void* value,
 	/* Set up common fields in the context */
 	fctx.user_buf = (void*)value;
 	fctx.user_buf_size = size;
-	fctx.fc_action = VFS_ACTION_SETXATTR;
+	fctx.fc_action = VFS_SETXATTR;
 	fctx.user_flags = flags;
 	fctx.fc_task = current_task();
 
@@ -260,19 +261,19 @@ int64 do_setxattr(const char* path, int fd, const char* name, const void* value,
 		fctx.fc_fd = fd;
 
 		/* Get the file from the file descriptor */
-		ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_ACTION_OPEN, 0);
+		ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_OPEN, 0);
 		if (ret < 0) {
 			fcontext_cleanup(&fctx);
 			return ret;
 		}
 	} else if (path && *path) {
 		/* Using path */
-		fctx.user_string = path;
+		fctx.path_string = path;
 		fctx.fc_path_remaining = (char*)path;
 		fctx.fc_action_flags = lookup_flags;
 
 		/* Resolve the path */
-		ret = MONKEY_WITH_ACTION(path_monkey, &fctx, PATH_ACTION_LOOKUP, lookup_flags);
+		ret = MONKEY_WITH_ACTION(path_monkey, &fctx, PATH_LOOKUP, lookup_flags);
 		if (ret < 0) {
 			fcontext_cleanup(&fctx);
 			return ret;
@@ -290,7 +291,7 @@ int64 do_setxattr(const char* path, int fd, const char* name, const void* value,
 	}
 
 	/* Perform the xattr operation on the inode */
-	ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_ACTION_SETXATTR, 0);
+	ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_SETXATTR, 0);
 
 	/* Clean up and return the result */
 	fcontext_cleanup(&fctx);

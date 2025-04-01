@@ -14,14 +14,13 @@ int64 do_lseek(int32 fd, off_t offset, int32 whence) {
 	struct fcontext fctx = {
 	    .fc_fd = fd,
 	    .fc_path_remaining = NULL,
-	    .fc_action = VFS_ACTION_NONE,
-	    .user_buf = (void*)(uintptr_t)offset,
-	    .user_buf_size = whence,
+	    .fc_action = VFS_NONE,
+	    .fc_iostruct = (void*)(uintptr_t)offset,
 	    .fc_task = current_task(),
 	};
 
 	// 获取文件对象
-	int32 ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_ACTION_OPEN, 0);
+	int32 ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_OPEN, 0);
 	if (ret < 0) {
 		fcontext_cleanup(&fctx);
 		return ret;
@@ -33,7 +32,7 @@ int64 do_lseek(int32 fd, off_t offset, int32 whence) {
 	// 检查是否需要特殊 seek 处理
 	if (file->f_flags & F_SPECIAL_SEEK) {
 		// 将操作转发到 inode 处理
-		ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_ACTION_LSEEK, whence);
+		ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_LSEEK, whence);
 		if (ret >= 0) {
 			new_pos = ret;
 		} else {
@@ -83,9 +82,9 @@ int64 do_mount(const char* ksource, const char* ktarget, const char* kfstype, ui
 
 	// Create a single context for mount operation
 	struct fcontext mount_ctx = {
-	    .user_string = ktarget,       // Target path
+	    .path_string = ktarget,       // Target path
 	    .fc_path_remaining = ktarget, // For path resolution
-	    .fc_action = VFS_ACTION_NONE, // Will be set later
+	    .fc_action = VFS_NONE, // Will be set later
 	    .user_flags = flags,            // Mount flags
 	    .user_buf = (void*)ksource,  // Source path
 	    .fc_iostruct = (void*)kdata,  // Mount options
@@ -94,14 +93,14 @@ int64 do_mount(const char* ksource, const char* ktarget, const char* kfstype, ui
 	};
 
 	// Resolve the mount point path
-	ret = MONKEY_WITH_ACTION(path_monkey, &mount_ctx, VFS_ACTION_PATHWALK, 0);
+	ret = MONKEY_WITH_ACTION(path_monkey, &mount_ctx, PATH_LOOKUP, 0);
 	if (ret < 0) {
 		fcontext_cleanup(&mount_ctx);
 		return ret;
 	}
 
 	// Perform the mount operation
-	ret = MONKEY_WITH_ACTION(type->fs_monkey, &mount_ctx, FS_ACTION_MOUNT, 0);
+	ret = MONKEY_WITH_ACTION(type->fs_monkey, &mount_ctx, FS_MOUNT, 0);
 
 	fcontext_cleanup(&mount_ctx);
 	return ret;
@@ -114,21 +113,21 @@ int64 do_read(int32 fd, void* kbuf, size_t count) {
 	    .fc_fd = fd,                  // File descriptor to read from
 	    .fc_path_remaining = NULL,    // No path needed for fd operation
 	    .user_flags = 0,                // No special flags needed
-	    .fc_action = VFS_ACTION_READ, // Read operation
+	    .fc_action = VFS_READ, // Read operation
 	    .user_buf = kbuf,            // User buffer to read into
 	    .user_buf_size = count,      // Number of bytes to read
 	    .fc_task = current_task(),    // Current task
 	};
 
 	/* Send to fd_monkey to convert fd to file */
-	int32 ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_ACTION_OPEN, 0);
+	int32 ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_OPEN, 0);
 	if (ret < 0) {
 		fcontext_cleanup(&fctx);
 		return ret;
 	}
 
 	/* Send to inode_monkey to perform the actual read */
-	ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_ACTION_READ, 0);
+	ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_READ, 0);
 
 	/* Clean up and return bytes read or error code */
 	fcontext_cleanup(&fctx);
@@ -140,10 +139,10 @@ int64 do_close(int32 fd) {
 	    .fc_fd = fd,                   // 要关闭的文件描述符
 	    .fc_path_remaining = NULL,     // 不需要路径
 	    .user_flags = 0,                 // 不需要特殊标志
-	    .fc_action = VFS_ACTION_CLOSE, // 关闭操作
+	    .fc_action = VFS_CLOSE, // 关闭操作
 	    .fc_task = current_task(),     // 当前任务
 	};
-	int32 ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_ACTION_CLOSE, 0);
+	int32 ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_CLOSE, 0);
 	fcontext_cleanup(&fctx);
 
 	return ret;
@@ -162,12 +161,12 @@ int64 do_open(const char* pathname, int32 flags, mode_t mode) {
 	}
 	return do_open(kpathname, flags, mode);
 	struct fcontext fctx = {
-	    .user_string = kpathname,
+	    .path_string = kpathname,
 	    .fc_path_remaining = kpathname,
 	    .fc_fd = -1,
 	    .user_flags = flags, // 操作行为
 	    .user_mode = mode,   // 创建权限
-	    .fc_action = VFS_ACTION_OPEN,
+	    .fc_action = VFS_OPEN,
 	    .fc_task = current_task(),
 	};
 
@@ -177,96 +176,3 @@ int64 do_open(const char* pathname, int32 flags, mode_t mode) {
 	kfree(kpathname);
 	return ret;
 }
-
-
-
-/* Extended attribute implementations */
-
-/**
- * do_setxattr - Set an extended attribute on a file
- * @path: Path to the file
- * @name: Name of the extended attribute
- * @value: Value to set
- * @size: Size of the value
- * @flags: Flags (XATTR_CREATE, XATTR_REPLACE)
- * @lookup_flags: Path lookup flags
- *
- * Sets an extended attribute on a file specified by path.
- * Returns 0 on success or negative error code on failure.
- */
-int64 do_setxattr(const char* path, const char* name, const void* value, size_t size, int flags, int lookup_flags) {
-    struct fcontext fctx = {
-        .user_string = path,
-        .fc_path_remaining = path,
-        .user_buf = (void*)value,
-        .user_buf_size = size,
-        .fc_action = VFS_ACTION_SETXATTR,
-        .fc_action_flags = lookup_flags,
-        .user_flags = flags,
-        .fc_task = current_task(),
-    };
-    
-    /* Set up name in string context */
-    fctx.fc_charbuf = (char*)name;
-    fctx.fc_strlen = strlen(name);
-    fctx.fc_hash = full_name_hash(name, fctx.fc_strlen);
-    
-    /* Resolve the path and perform the operation */
-	int32 ret = MONKEY_WITH_ACTION(path_monkey, &fctx, PATH_ACTION_LOOKUP, lookup_flags);
-	if(ret || dentry_isDir(fctx.fc_dentry)){
-		fcontext_cleanup(&fctx);
-		return ret; // Error during path resolution
-	}
-
-	int32 ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_ACTION_SETXATTR,0);
-    
-    fcontext_cleanup(&fctx);
-    return ret;
-}
-
-/**
- * do_fsetxattr - Set an extended attribute on a file descriptor
- * @fd: File descriptor 
- * @name: Name of the extended attribute
- * @value: Value to set
- * @size: Size of the value
- * @flags: Flags (XATTR_CREATE, XATTR_REPLACE)
- *
- * Sets an extended attribute on a file specified by file descriptor.
- * Returns 0 on success or negative error code on failure.
- */
-int64 do_fsetxattr(int fd, const char* name, const void* value, size_t size, int flags) {
-    struct fcontext fctx = {
-        .fc_fd = fd,
-        .user_buf = (void*)value,
-        .user_buf_size = size,
-        .fc_action = VFS_ACTION_SETXATTR,
-        .fc_iostruct = (void*)(uintptr_t)flags,  /* Store flags in iostruct */
-        .fc_task = current_task(),
-    };
-    
-    /* Set up name in string context */
-    fctx.fc_charbuf = (char*)name;
-    fctx.fc_strlen = strlen(name);
-    fctx.fc_hash = full_name_hash(name, fctx.fc_strlen);
-    
-    /* Get the file from the file descriptor */
-    int32 ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_ACTION_OPEN, 0);
-    if (ret < 0) {
-        fcontext_cleanup(&fctx);
-        return ret;
-    }
-    
-    /* Perform the operation on the file's inode */
-	// 然后inode_monkey会智能判断目标file存在fc_dentry还是fc_file里
-    ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, VFS_ACTION_SETXATTR, 0);
-    
-    fcontext_cleanup(&fctx);
-    return ret;
-}
-
-/* 
- * Note: We don't need a separate do_lsetxattr function since do_setxattr
- * handles both cases with the lookup_flags parameter. The sys_lsetxattr
- * syscall will call do_setxattr with lookup_flags=0 to avoid following symlinks.
- */

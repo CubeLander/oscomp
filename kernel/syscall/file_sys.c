@@ -72,21 +72,21 @@ int64 sys_write(int32 fd, const void* buf, size_t count) {
 	    .fc_fd = fd,                   // File descriptor to write to
 	    .fc_path_remaining = NULL,     // No path needed for fd operation
 	    .user_flags = 0,                 // No special flags needed
-	    .fc_action = VFS_ACTION_WRITE, // Write operation
+	    .fc_action = VFS_WRITE, // Write operation
 	    .user_buf = (void*)kbuf,      // User buffer to write from
 	    .user_buf_size = count,       // Number of bytes to write
 	    .fc_task = current_task(),     // Current task
 	};
 
 	/* Send to fd_monkey to convert fd to file */
-	int32 ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_ACTION_OPEN, 0);
+	int32 ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_OPEN, 0);
 	if (ret < 0) {
 		fcontext_cleanup(&fctx);
 		return ret;
 	}
 
 	/* Send to inode_monkey to perform the actual write */
-	ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_ACTION_WRITE, 0);
+	ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_WRITE, 0);
 
 	/* Clean up and return bytes written or error code */
 	fcontext_cleanup(&fctx);

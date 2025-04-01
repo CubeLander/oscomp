@@ -87,7 +87,7 @@ void kmalloc_stats(void);
 
 void* alloc_kernel_stack(void);
 
-char *kstrdup(const char *s, uint32 gfp);
+char *kstrdup(const char *s);
 char *kstrndup(const char *s, size_t max, uint32 gfp);
 
 #endif /* _KMALLOC_H */
