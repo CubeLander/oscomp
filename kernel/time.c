@@ -3,8 +3,7 @@
 
 /* System time variables */
 static struct timespec system_time;
-static uint64 system_jiffies;
-
+uint64 jiffies = 0;
 /**
  * current_time - Get current system time
  * @sb: Superblock (optional, can be NULL)

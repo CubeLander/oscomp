@@ -73,9 +73,9 @@ void fcontext_cleanup(struct fcontext* fctx) {
         fctx->fc_mount = NULL;
     }
 
-	if(fctx->fc_buffer){
-		kfree(fctx->fc_buffer);
-		fctx->fc_buffer = NULL;
+	if(fctx->user_buf){
+		kfree(fctx->user_buf);
+		fctx->user_buf = NULL;
 	}
 
 
@@ -88,14 +88,9 @@ void fcontext_cleanup(struct fcontext* fctx) {
         fctx->fc_charbuf = NULL;
     }
 
-    /* Clean up IO-related resources */
-    if (fctx->fc_buffer) {
-        kfree(fctx->fc_buffer);
-        fctx->fc_buffer = NULL;
-    }
 
     /* Reset remaining fields */
     fctx->fc_strlen = 0;
     fctx->fc_hash = 0;
-    fctx->fc_buffer_size = 0;
+    fctx->user_buf_size = 0;
 }

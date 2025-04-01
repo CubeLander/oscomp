@@ -63,7 +63,7 @@ struct inode {
 	struct timespec i_mtime; /* Last modification time */
 	struct timespec i_ctime; /* Last status change time */
 	struct timespec i_btime; /* Creation time (birth time) */
-	uint32 i_nlink;          /* Number of hard links */
+	atomic_t i_nlink;          /* Number of hard links */
 	blkcnt_t i_blocks;       /* Number of blocks allocated */
 
 	/* Filesystem information */

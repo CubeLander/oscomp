@@ -33,6 +33,8 @@
 - [x] 在superblock中处理ino = 0的acquire请求
 - [ ] 补充kernel/console
 - [ ] 重写进程信号量和进程信号函数
+- [ ] 在dcache中删除dentry
+- [ ] 创建成功后再插入哈希表
 
 
 

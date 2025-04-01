@@ -158,10 +158,10 @@ int64 sys_write(int32 fd, const void* buf, size_t count) {
 	struct fcontext fctx = {
 	    .fc_fd = fd,                   // File descriptor to write to
 	    .fc_path_remaining = NULL,     // No path needed for fd operation
-	    .fc_flags = 0,                 // No special flags needed
+	    .user_flags = 0,                 // No special flags needed
 	    .fc_action = VFS_ACTION_WRITE, // Write operation
-	    .fc_buffer = (void*)kbuf,      // User buffer to write from
-	    .fc_buffer_size = count,       // Number of bytes to write
+	    .user_buf = (void*)kbuf,      // User buffer to write from
+	    .user_buf_size = count,       // Number of bytes to write
 	    .fc_task = current_task(),     // Current task
 	};
 
@@ -250,3 +250,5 @@ out_free:
 	if (kdata) kfree(kdata);
 	return ret;
 }
+
+

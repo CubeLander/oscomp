@@ -15,8 +15,8 @@ int64 do_lseek(int32 fd, off_t offset, int32 whence) {
 	    .fc_fd = fd,
 	    .fc_path_remaining = NULL,
 	    .fc_action = VFS_ACTION_NONE,
-	    .fc_buffer = (void*)(uintptr_t)offset,
-	    .fc_buffer_size = whence,
+	    .user_buf = (void*)(uintptr_t)offset,
+	    .user_buf_size = whence,
 	    .fc_task = current_task(),
 	};
 
@@ -83,11 +83,11 @@ int64 do_mount(const char* ksource, const char* ktarget, const char* kfstype, ui
 
 	// Create a single context for mount operation
 	struct fcontext mount_ctx = {
-	    .fc_filename = ktarget,       // Target path
+	    .user_string = ktarget,       // Target path
 	    .fc_path_remaining = ktarget, // For path resolution
 	    .fc_action = VFS_ACTION_NONE, // Will be set later
-	    .fc_flags = flags,            // Mount flags
-	    .fc_buffer = (void*)ksource,  // Source path
+	    .user_flags = flags,            // Mount flags
+	    .user_buf = (void*)ksource,  // Source path
 	    .fc_iostruct = (void*)kdata,  // Mount options
 	    .fc_task = current_task(),
 	    .fc_fstype = type,
@@ -113,10 +113,10 @@ int64 do_read(int32 fd, void* kbuf, size_t count) {
 	struct fcontext fctx = {
 	    .fc_fd = fd,                  // File descriptor to read from
 	    .fc_path_remaining = NULL,    // No path needed for fd operation
-	    .fc_flags = 0,                // No special flags needed
+	    .user_flags = 0,                // No special flags needed
 	    .fc_action = VFS_ACTION_READ, // Read operation
-	    .fc_buffer = kbuf,            // User buffer to read into
-	    .fc_buffer_size = count,      // Number of bytes to read
+	    .user_buf = kbuf,            // User buffer to read into
+	    .user_buf_size = count,      // Number of bytes to read
 	    .fc_task = current_task(),    // Current task
 	};
 
@@ -139,7 +139,7 @@ int64 do_close(int32 fd) {
 	struct fcontext fctx = {
 	    .fc_fd = fd,                   // 要关闭的文件描述符
 	    .fc_path_remaining = NULL,     // 不需要路径
-	    .fc_flags = 0,                 // 不需要特殊标志
+	    .user_flags = 0,                 // 不需要特殊标志
 	    .fc_action = VFS_ACTION_CLOSE, // 关闭操作
 	    .fc_task = current_task(),     // 当前任务
 	};
@@ -162,11 +162,11 @@ int64 do_open(const char* pathname, int32 flags, mode_t mode) {
 	}
 	return do_open(kpathname, flags, mode);
 	struct fcontext fctx = {
-	    .fc_filename = kpathname,
+	    .user_string = kpathname,
 	    .fc_path_remaining = kpathname,
 	    .fc_fd = -1,
-	    .fc_flags = flags, // 操作行为
-	    .fc_mode = mode,   // 创建权限
+	    .user_flags = flags, // 操作行为
+	    .user_mode = mode,   // 创建权限
 	    .fc_action = VFS_ACTION_OPEN,
 	    .fc_task = current_task(),
 	};
@@ -196,13 +196,13 @@ int64 do_open(const char* pathname, int32 flags, mode_t mode) {
  */
 int64 do_setxattr(const char* path, const char* name, const void* value, size_t size, int flags, int lookup_flags) {
     struct fcontext fctx = {
-        .fc_filename = path,
+        .user_string = path,
         .fc_path_remaining = path,
-        .fc_buffer = (void*)value,
-        .fc_buffer_size = size,
+        .user_buf = (void*)value,
+        .user_buf_size = size,
         .fc_action = VFS_ACTION_SETXATTR,
         .fc_action_flags = lookup_flags,
-        .fc_flags = flags,
+        .user_flags = flags,
         .fc_task = current_task(),
     };
     
@@ -238,8 +238,8 @@ int64 do_setxattr(const char* path, const char* name, const void* value, size_t 
 int64 do_fsetxattr(int fd, const char* name, const void* value, size_t size, int flags) {
     struct fcontext fctx = {
         .fc_fd = fd,
-        .fc_buffer = (void*)value,
-        .fc_buffer_size = size,
+        .user_buf = (void*)value,
+        .user_buf_size = size,
         .fc_action = VFS_ACTION_SETXATTR,
         .fc_iostruct = (void*)(uintptr_t)flags,  /* Store flags in iostruct */
         .fc_task = current_task(),

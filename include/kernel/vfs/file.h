@@ -27,6 +27,7 @@ struct file {
 	uint32 f_flags; /* Kernel internal flags */
 
 	void* f_private;
+	// fs_specific_handler需要处理file_free事件。
 };
 
 /* 在 file.h 中为 f_flags 添加新的标志位 */

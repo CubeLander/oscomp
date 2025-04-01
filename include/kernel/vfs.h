@@ -8,7 +8,6 @@
 #include <kernel/vfs/file.h>
 #include <kernel/vfs/inode.h>
 // #include <kernel/vfs/namespace.h>
-#include <kernel/vfs/addrspace.h>
 #include <kernel/vfs/buffer_head.h>
 #include <kernel/vfs/fiemap.h>
 #include <kernel/vfs/fstype.h>
@@ -20,7 +19,7 @@
 #include <kernel/vfs/fdtable.h>
 #include <kernel/vfs/fs_struct.h>
 #include <kernel/vfs/fcontext.h>
-
+#include <kernel/vfs/dcache.h>
 
 #include <kernel/types.h>
 #include <kernel/util/list.h>

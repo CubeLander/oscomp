@@ -10,5 +10,5 @@ AccessModifierOffset: -4
 PointerAlignment: Left
 
 AllowShortIfStatementsOnASingleLine: true
-AllowShortBlocksOnASingleLine: Always
-AllowShortLoopsOnASingleLine: true
+AllowShortBlocksOnASingleLine: false
+AllowShortLoopsOnASingleLine: false

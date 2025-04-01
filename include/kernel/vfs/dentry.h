@@ -39,36 +39,18 @@ struct dentry {
 	struct list_node d_inodeListNode; /* Inode 别名链表，用来维护硬链接 */
 };
 
+int32 dentry_monkey(struct fcontext* fctx);
 
-int32 init_dentry_hashtable(void);
-void init_dentry_lruList(void);
-
-
-struct dentry* dentry_lookup(struct dentry* parent, const struct qstr* name);
 struct dentry* dentry_ref(struct dentry* dentry);
 int32 dentry_unref(struct dentry* dentry);
 struct vfsmount* dentry_lookupMount(struct dentry* dentry);
 
 
 
-void dentry_prune(struct dentry* dentry); /*unsafe*/
 int32 dentry_delete(struct dentry* dentry);
 
 int32 dentry_instantiate(struct dentry* dentry, struct inode* inode);
 
-/*名字和目录操作*/
-int32 dentry_rename(struct dentry* old_dentry, struct dentry* new_dentry);
-
-/*符号链接支持*/
-char* dentry_allocRawPath(struct dentry* dentry);
-void dentry_prune(struct dentry* dentry);
-
-
-int32 setattr_prepare(struct dentry* dentry, struct iattr* attr);
-int32 notify_change(struct dentry* dentry, struct iattr* attr);
-
-/*inode hook functions*/
-int32 dentry_permission(struct dentry* dentry, int32 mask);
 
 /*
  * Dentry state flags
@@ -112,10 +94,23 @@ static inline bool dentry_isNegative(const struct dentry* dentry) {
 	return (dentry->d_flags & DCACHE_NEGATIVE) != 0;
 }
 
-bool dentry_isEmptyDir(struct dentry* dentry);
+/**
+ * dentry_isEmptyDir - Check if a directory is empty
+ * @dentry: The directory entry to check
+ *
+ * Returns true if the directory contains no entries other than "." and ".."
+ * Returns false if the dentry is invalid, not a directory, or contains entries
+ */
+static inline bool dentry_isEmptyDir(struct dentry* dentry) {
+	// Verify the dentry is valid and is a directory
+	if (!dentry || !dentry_isDir(dentry)) return false;
+
+	// Empty directories have no child entries in d_childList
+	// (note: "." and ".." special entries aren't included in d_childList)
+	return list_empty(&dentry->d_childList);
+}
 
 
-int32 dentry_monkey(struct fcontext* fctx);
 
 // 可选：缓存一致性方法
 // void d_rehash_subtree(struct dentry *dentry);

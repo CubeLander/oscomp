@@ -9,37 +9,6 @@
 /* Add global variable */
 struct dentry* global_root_dentry = NULL;
 
-/**
- * vfs_mkdir_path - Create a directory using a path string
- * @path: Path string for the directory to create
- * @mode: Directory mode/permissions
- *
- * Creates a directory at the specified path.
- * Path can be absolute (from root) or relative (from cwd).
- *
- * Returns 0 on success, negative error code on failure
- */
-struct dentry* vfs_mkdir_path(const char* path, fmode_t mode) {
-	struct path parent;
-	int32 name_pos;
-	struct dentry* result;
-
-	if (!path || !*path) return ERR_PTR(-EINVAL);
-
-	/* Special case for creating root - impossible */
-	if (strcmp(path, "/") == 0) return ERR_PTR(-EEXIST);
-
-	/* Resolve the parent directory */
-	name_pos = resolve_path_parent(path, &parent);
-	if (name_pos < 0) return ERR_PTR(name_pos); /* Error code */
-
-	/* Create the directory */
-	result = dentry_mkdir(parent.dentry, &path[name_pos], mode);
-
-	/* Clean up */
-	path_destroy(&parent);
-	return result;
-}
 
 /**
  * vfs_kern_mount
@@ -72,38 +41,6 @@ struct vfsmount* vfs_kern_mount(struct fstype* fstype, int32 flags, const char* 
 	CHECK_PTR_VALID(mount, ERR_PTR(-ENOMEM));
 
 	return mount;
-}
-
-
-/**
- * vfs_link - Create a hard link
- * @old_dentry: Existing file's dentry
- * @dir: Directory to create link in
- * @new_dentry: Dentry for new link
- * @new_inode: Output parameter for resulting inode
- *
- * Returns 0 on success or negative error code
- */
-int32 vfs_link(struct dentry* old_dentry, struct inode* dir, struct dentry* new_dentry, struct inode** new_inode) {
-	int32 error;
-
-	if (!old_dentry || !dir || !new_dentry) return -EINVAL;
-
-	if (!dir->i_op || !dir->i_op->link) return -EPERM;
-
-	/* Check if target exists */
-	if (new_dentry->d_inode) return -EEXIST;
-
-	/* Check permissions */
-	error = inode_checkPermission(dir, MAY_WRITE);
-	if (error) return error;
-
-	error = dir->i_op->link(old_dentry, dir, new_dentry);
-	if (error) return error;
-
-	if (new_inode) *new_inode = new_dentry->d_inode;
-
-	return 0;
 }
 
 /**

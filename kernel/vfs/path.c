@@ -352,7 +352,7 @@ int32 path_monkey(struct fcontext* fctx) {
     is_create_intent = (fctx->fc_action == VFS_ACTION_CREATE || 
                         fctx->fc_action == VFS_ACTION_MKDIR || 
                         fctx->fc_action == VFS_ACTION_MKNOD ||
-                        ((fctx->fc_action == VFS_ACTION_OPEN) && (fctx->fc_flags & O_CREAT)));
+                        ((fctx->fc_action == VFS_ACTION_OPEN) && (fctx->user_flags & O_CREAT)));
 
     /* Handle absolute path */
     if (isAbsolutePath(fctx->fc_path_remaining)) {
@@ -383,9 +383,9 @@ int32 path_monkey(struct fcontext* fctx) {
         /* For last component of create operations, use LOOKUP_CREATE flag */
         uint32 lookup_flags = 0;
         if (is_create_intent && is_last_component) {
-            lookup_flags = open_to_lookup_flags(fctx->fc_flags) | LOOKUP_CREATE;
+            lookup_flags = open_to_lookup_flags(fctx->user_flags) | LOOKUP_CREATE;
         } else {
-            lookup_flags = open_to_lookup_flags(fctx->fc_flags);
+            lookup_flags = open_to_lookup_flags(fctx->user_flags);
         }
 
         /* Process component with appropriate flags */

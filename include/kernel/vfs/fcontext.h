@@ -12,7 +12,7 @@
 
 struct fcontext{
 	// 主语和主语路径解释
-	const char* fc_filename;
+	const char* user_string;
 	char* fc_path_remaining;
 	int32 fc_fd;
 	struct file* fc_file;
@@ -40,8 +40,8 @@ struct fcontext{
 	int32 fc_action_flags;
 
 	// 这两个字段是用户定义的，不能随便动。
-	const int32 fc_flags;
-	const mode_t fc_mode;
+	int32 user_flags;
+	mode_t user_mode;
 
 
 	// 宾语,作为过程的输入输出
@@ -50,8 +50,8 @@ struct fcontext{
 	// 如何解释和使用这个指针，取决于fc_action
 	// 就像 syscall 的 rax，但更自由、更通用、更具意图性
 
-	void* fc_buffer;
-	int32 fc_buffer_size;
+	void* user_buf;
+	int32 user_buf_size;
 
 	dev_t io_dev;
 
@@ -165,6 +165,9 @@ enum monkey_action{
 	INODE_ACTION_WRITE,
 	INODE_ACTION_LSEEK,
 	INODE_ACTION_SETXATTR,
+	INODE_ACTION_REMOVEXATTR,
+	INODE_ACTION_LISTXATTR,
+	INODE_ACTION_GETXATTR,
 
 	DENTRY_ACTION_LOOKUP,
 

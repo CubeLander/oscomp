@@ -3,20 +3,12 @@
  */
 
 #include <kernel/strap.h>
-#include <kernel/mm/mmap.h>
-
-
-
-#include <kernel/mm/page.h>
-#include <kernel/mm/mm_struct.h>
-#include <kernel/sched/process.h>
+#include <kernel/mmu.h>
+#include <kernel/time.h>
+#include <kernel/sched.h>
 #include <kernel/riscv.h>
-#include <kernel/sched/sched.h>
-#include <kernel/util/string.h>
+#include <kernel/util.h>
 #include <kernel/syscall/syscall.h>
-
-
-
 #include <kernel/sprint.h>
 
 //
@@ -33,7 +25,7 @@ static void handle_syscall(struct trapframe *tf) {
 
 //
 // global variable that store the recorded "ticks". added @lab1_3
-static uint64 jiffies = 0;
+
 //
 // added @lab1_3
 //

@@ -4,6 +4,7 @@
 #include <kernel/sched/signal.h>
 #include <kernel/types.h>
 
+extern uint64 jiffies; /* Current system time in jiffies */
 /** defined in <sys/time.h>
  * struct timezone;
  * struct itimerval;
