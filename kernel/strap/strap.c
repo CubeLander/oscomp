@@ -20,14 +20,14 @@
 #include <kernel/sprint.h>
 
 //
-// handling the syscalls. will call do_syscall() defined in kernel/syscall.c
+// handling the syscalls. will call syscall_entry() defined in kernel/syscall.c
 //
 static void handle_syscall(struct trapframe *tf) {
 
   tf->epc += 4;
 
 
-  tf->regs.a0 = do_syscall(tf->regs.a7, tf->regs.a0, tf->regs.a1, tf->regs.a2, tf->regs.a3,
+  tf->regs.a0 = syscall_entry(tf->regs.a7, tf->regs.a0, tf->regs.a1, tf->regs.a2, tf->regs.a3,
                            tf->regs.a4, tf->regs.a5);
 }
 

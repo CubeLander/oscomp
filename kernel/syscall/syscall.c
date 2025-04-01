@@ -73,7 +73,7 @@ static struct syscall_entry syscall_table[] = {
 /**
  * The main syscall dispatcher
  */
-int64 do_syscall(int64 syscall_num, int64 a0, int64 a1, int64 a2, int64 a3, int64 a4, int64 a5) {
+int64 syscall_entry(int64 syscall_num, int64 a0, int64 a1, int64 a2, int64 a3, int64 a4, int64 a5) {
 
 	/* Validate syscall number */
 	if (syscall_num < 0 || syscall_num >= SYSCALL_TABLE_SIZE || !syscall_table[syscall_num].func) {
@@ -99,6 +99,12 @@ int64 do_syscall(int64 syscall_num, int64 a0, int64 a1, int64 a2, int64 a3, int6
 	return ret;
 }
 
+/* lseek syscall implementation */
+int64 sys_lseek(int32 fd, off_t offset, int32 whence) {
+	/* Simple arguments, no memory allocation needed */
+	return do_lseek(fd, offset, whence);
+}
+
 /* Implementations of actual syscall handlers follow */
 
 int64 sys_open(const char* pathname, int32 flags, mode_t mode) {
@@ -112,37 +118,12 @@ int64 sys_open(const char* pathname, int32 flags, mode_t mode) {
 		kfree(kpathname);
 		return -EFAULT;
 	}
-	struct fcontext fctx = {
-	    .fc_filename = kpathname,
-	    .fc_path_remaining = kpathname,
-	    .fc_fd = -1,
-	    .fc_flags = flags, // 操作行为
-	    .fc_mode = mode,   // 创建权限
-	    .fc_action = VFS_ACTION_OPEN,
-	    .fc_task = current_task(),
-	};
-
-	int32 ret = vfs_monkey(&fctx);
-	fcontext_cleanup(&fctx);
-
-	kfree(kpathname);
-	return ret;
+	return do_open(kpathname, flags, mode);
 }
 
 int64 sys_close(int32 fd) {
 	if (fd < 0) return -EBADF; // 无效的文件描述符
-
-	struct fcontext fctx = {
-	    .fc_fd = fd,                   // 要关闭的文件描述符
-	    .fc_path_remaining = NULL,     // 不需要路径
-	    .fc_flags = 0,                 // 不需要特殊标志
-	    .fc_action = VFS_ACTION_CLOSE, // 关闭操作
-	    .fc_task = current_task(),     // 当前任务
-	};
-	int32 ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_ACTION_CLOSE, 0);
-	fcontext_cleanup(&fctx);
-
-	return ret;
+	return do_close(fd);
 }
 
 /* Add the rest of your syscall implementations here */
@@ -157,33 +138,8 @@ int64 sys_read(int32 fd, void* buf, size_t count) {
 
 	/* 在内核空间分配临时缓冲区 */
 	void* kbuf = kmalloc(count);
-
 	if (!kbuf) return -ENOMEM;
-
-	/* Set up file context for read operation */
-	struct fcontext fctx = {
-	    .fc_fd = fd,                  // File descriptor to read from
-	    .fc_path_remaining = NULL,    // No path needed for fd operation
-	    .fc_flags = 0,                // No special flags needed
-	    .fc_action = VFS_ACTION_READ, // Read operation
-	    .fc_buffer = kbuf,            // User buffer to read into
-	    .fc_buffer_size = count,      // Number of bytes to read
-	    .fc_task = current_task(),    // Current task
-	};
-
-	/* Send to fd_monkey to convert fd to file */
-	int32 ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_ACTION_OPEN, 0);
-	if (ret < 0) {
-		fcontext_cleanup(&fctx);
-		return ret;
-	}
-
-	/* Send to inode_monkey to perform the actual read */
-	ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_ACTION_READ, 0);
-
-	/* Clean up and return bytes read or error code */
-	fcontext_cleanup(&fctx);
-	return ret;
+	return do_read(fd, kbuf, count);
 }
 
 int64 sys_write(int32 fd, const void* buf, size_t count) {
@@ -221,5 +177,76 @@ int64 sys_write(int32 fd, const void* buf, size_t count) {
 
 	/* Clean up and return bytes written or error code */
 	fcontext_cleanup(&fctx);
+	return ret;
+}
+
+/* mount syscall implementation */
+int64 sys_mount(const char* source, const char* target, const char* fstype_name, uint64 flags, const void* data) {
+	// Copy strings from user space
+	char* ksource = NULL;
+	char* ktarget = NULL;
+	char* kfstype = NULL;
+	void* kdata = NULL;
+	int64 ret;
+
+	// Validate required arguments
+	if (!target || !fstype_name) return -EINVAL;
+
+	// Allocate and copy target path (required)
+	ktarget = kmalloc(PATH_MAX);
+	if (!ktarget) return -ENOMEM;
+	if (copy_from_user(ktarget, target, PATH_MAX)) {
+		ret = -EFAULT;
+		goto out_free;
+	}
+
+	// Allocate and copy fstype (required)
+	kfstype = kmalloc(PATH_MAX);
+	if (!kfstype) {
+		ret = -ENOMEM;
+		goto out_free;
+	}
+	if (copy_from_user(kfstype, fstype_name, PATH_MAX)) {
+		ret = -EFAULT;
+		goto out_free;
+	}
+
+	// If source is provided, allocate and copy it
+	if (source) {
+		ksource = kmalloc(PATH_MAX);
+		if (!ksource) {
+			ret = -ENOMEM;
+			goto out_free;
+		}
+		if (copy_from_user(ksource, source, PATH_MAX)) {
+			ret = -EFAULT;
+			goto out_free;
+		}
+	}
+
+	// Copy mount data if provided
+	if (data) {
+		// Assuming data is a null-terminated string
+		kdata = kmalloc(PATH_MAX); // Use appropriate size
+		if (!kdata) {
+			ret = -ENOMEM;
+			goto out_free;
+		}
+		if (copy_from_user(kdata, data, PATH_MAX)) {
+			ret = -EFAULT;
+			goto out_free;
+		}
+	}
+
+	// Call internal implementation
+	return do_mount(ksource, ktarget, kfstype, flags, kdata);
+	// 这些资源会在fcontext_cleanup中统一释放
+
+out_free:
+	// Always free allocated memory
+	if (ksource) kfree(ksource);
+	if (ktarget) kfree(ktarget);
+	if (kfstype) kfree(kfstype);
+	if (kdata) kfree(kdata);
 	return ret;
 }

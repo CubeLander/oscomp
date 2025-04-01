@@ -35,6 +35,7 @@ struct fcontext{
 			uint32 fc_hash;
 		};
 	};
+	struct fstype* fc_fstype;
 	// 注意，这里的obj_path会随着fc_path_remaining的变化而变化
 	// 直到*fc_path_remaining == 0
 
@@ -164,5 +165,6 @@ enum monkey_action{
 
 	INODE_ACTION_READ,
 	INODE_ACTION_WRITE,
+	INODE_ACTION_LSEEK,
 
 };

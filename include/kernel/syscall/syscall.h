@@ -22,7 +22,7 @@ struct syscall_entry {
 };
 
 /* Syscall dispatcher */
-int64 do_syscall(int64 syscall_num, int64 a0, int64 a1, int64 a2, int64 a3, int64 a4, int64 a5);
+int64 syscall_entry(int64 syscall_num, int64 a0, int64 a1, int64 a2, int64 a3, int64 a4, int64 a5);
 
 /* File-related syscalls */
 int64 sys_open(const char* pathname, int32 flags, mode_t mode);

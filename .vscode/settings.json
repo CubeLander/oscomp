@@ -70,7 +70,8 @@
 		"ratio": "cpp",
 		"system_error": "cpp",
 		"cstdlib": "c",
-		"algorithm": "c"
+		"algorithm": "c",
+		"syscall.h": "c"
 	},
     "C_Cpp.vcFormat.newLine.closeBraceSameLine.emptyFunction": true,
     "C_Cpp.vcFormat.newLine.closeBraceSameLine.emptyType": true,
