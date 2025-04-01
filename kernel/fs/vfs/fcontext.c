@@ -73,6 +73,12 @@ void fcontext_cleanup(struct fcontext* fctx) {
         fctx->fc_mount = NULL;
     }
 
+	if(fctx->fc_buffer){
+		kfree(fctx->fc_buffer);
+		fctx->fc_buffer = NULL;
+	}
+
+
     /* Clean up string buffer if it was dynamically allocated 
      * Note: Only free fc_charbuf if it's not a substring of fc_path_remaining
      */
@@ -83,27 +89,13 @@ void fcontext_cleanup(struct fcontext* fctx) {
     }
 
     /* Clean up IO-related resources */
-    if (fctx->io_buffer) {
-        kfree(fctx->io_buffer);
-        fctx->io_buffer = NULL;
-    }
-
-    if (fctx->io_string) {
-        kfree((char*)fctx->io_string);
-        fctx->io_string = NULL;
-    }
-
-    /* Clean up any filesystem-specific IO structure if needed */
-    if (fctx->fc_iostruct) {
-        /* Ideally, there should be a callback or type info to know how to free this,
-           since it's filesystem-specific. For now, assuming it's a simple allocation. */
-        kfree(fctx->fc_iostruct);
-        fctx->fc_iostruct = NULL;
+    if (fctx->fc_buffer) {
+        kfree(fctx->fc_buffer);
+        fctx->fc_buffer = NULL;
     }
 
     /* Reset remaining fields */
     fctx->fc_strlen = 0;
     fctx->fc_hash = 0;
-    fctx->io_buffer_size = 0;
-    fctx->io_string_size = 0;
+    fctx->fc_buffer_size = 0;
 }

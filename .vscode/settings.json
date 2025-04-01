@@ -69,7 +69,8 @@
 		"optional": "cpp",
 		"ratio": "cpp",
 		"system_error": "cpp",
-		"cstdlib": "c"
+		"cstdlib": "c",
+		"algorithm": "c"
 	},
     "C_Cpp.vcFormat.newLine.closeBraceSameLine.emptyFunction": true,
     "C_Cpp.vcFormat.newLine.closeBraceSameLine.emptyType": true,

@@ -53,11 +53,8 @@ struct fcontext{
 	// 如何解释和使用这个指针，取决于fc_action
 	// 就像 syscall 的 rax，但更自由、更通用、更具意图性
 
-	const char* io_string;
-	int32 io_string_size;
-
-	void* io_buffer;
-	int32 io_buffer_size;
+	void* fc_buffer;
+	int32 fc_buffer_size;
 
 	dev_t io_dev;
 
@@ -152,6 +149,8 @@ enum monkey_action{
 	VFS_ACTION_FIEMAP,
 	VFS_ACTION_LOOKUP,	// 这个是一个伪系统调用
 	VFS_ACTION_PATHWALK,
+	VFS_ACTION_READ,
+	VFS_ACTION_WRITE,
 
 	// fs_monkey需要回应这些意图
 	FS_ACTION_INITFS,
@@ -162,5 +161,8 @@ enum monkey_action{
 	FD_ACTION_OPEN,
 	FD_ACTION_CLOSE,
 
+
+	INODE_ACTION_READ,
+	INODE_ACTION_WRITE,
 
 };
