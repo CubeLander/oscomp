@@ -142,7 +142,7 @@ void time_init(void)
     update_sys_time_from_hw();
     
     /* Initialize system jiffies */
-    system_jiffies = 0;
+    jiffies = 0;
 }
 
 /**

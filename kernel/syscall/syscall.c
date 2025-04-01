@@ -9,9 +9,6 @@
 
 /* Debug flag to enable syscall tracing */
 #define SYSCALL_DEBUG 0
-
-/* Wrapper functions for each syscall type */
-
 /* File wrappers */
 static int64 open_wrapper(int64 pathname, int64 flags, int64 mode, int64 a3, int64 a4, int64 a5) { return sys_open((const char*)pathname, (int32)flags, (mode_t)mode); }
 
@@ -22,6 +19,19 @@ static int64 read_wrapper(int64 fd, int64 buf, int64 count, int64 a3, int64 a4, 
 static int64 write_wrapper(int64 fd, int64 buf, int64 count, int64 a3, int64 a4, int64 a5) { return sys_write((int32)fd, (const void*)buf, (size_t)count); }
 
 static int64 lseek_wrapper(int64 fd, int64 offset, int64 whence, int64 a3, int64 a4, int64 a5) { return sys_lseek((int32)fd, (off_t)offset, (int32)whence); }
+
+/* Mount-related syscalls */
+static int64 mount_wrapper(int64 source, int64 target, int64 fstype, int64 flags, int64 data, int64 a5) {
+	return sys_mount((const char*)source, (const char*)target, (const char*)fstype, (uint64)flags, (const void*)data);
+}
+
+static int64 umount_wrapper(int64 target, int64 a1, int64 a2, int64 a3, int64 a4, int64 a5) { return sys_umount((const char*)target, 0); }
+
+static int64 umount2_wrapper(int64 target, int64 flags, int64 a2, int64 a3, int64 a4, int64 a5) { return sys_umount2((const char*)target, (int32)flags); }
+
+static int64 pivot_root_wrapper(int64 new_root, int64 put_old, int64 a2, int64 a3, int64 a4, int64 a5) { return sys_pivot_root((const char*)new_root, (const char*)put_old); }
+
+/* Wrapper functions for each syscall type */
 
 static int64 mount_wrapper(int64 source, int64 target, int64 fstype, int64 flags, int64 data, int64 a5) {
 	return sys_mount((const char*)source, (const char*)target, (const char*)fstype, (uint64)flags, (const void*)data);
@@ -44,6 +54,12 @@ static int64 time_wrapper(int64 tloc, int64 a1, int64 a2, int64 a3, int64 a4, in
 
 /* Complete syscall table */
 static struct syscall_entry syscall_table[] = {
+
+    /* Add these to the syscall table */
+    [SYS_mount] = {mount_wrapper, "mount", 5},
+    [SYS_umount2] = {umount2_wrapper, "umount2", 2},
+    [SYS_pivot_root] = {pivot_root_wrapper, "pivot_root", 2},
+
     /* File operations */
     [SYS_open] = {open_wrapper, "open", 3},
     [SYS_close] = {close_wrapper, "close", 1},
@@ -98,157 +114,3 @@ int64 syscall_entry(int64 syscall_num, int64 a0, int64 a1, int64 a2, int64 a3, i
 
 	return ret;
 }
-
-/* lseek syscall implementation */
-int64 sys_lseek(int32 fd, off_t offset, int32 whence) {
-	/* Simple arguments, no memory allocation needed */
-	return do_lseek(fd, offset, whence);
-}
-
-/* Implementations of actual syscall handlers follow */
-
-int64 sys_open(const char* pathname, int32 flags, mode_t mode) {
-	if (!pathname) return -EFAULT;
-
-	/* Copy pathname from user space */
-	char* kpathname = kmalloc(PATH_MAX);
-	if (!kpathname) return -ENOMEM;
-
-	if (copy_from_user(kpathname, pathname, PATH_MAX)) {
-		kfree(kpathname);
-		return -EFAULT;
-	}
-	return do_open(kpathname, flags, mode);
-}
-
-int64 sys_close(int32 fd) {
-	if (fd < 0) return -EBADF; // 无效的文件描述符
-	return do_close(fd);
-}
-
-/* Add the rest of your syscall implementations here */
-
-int64 sys_read(int32 fd, void* buf, size_t count) {
-	if (fd < 0) return -EBADF; // Invalid file descriptor
-
-	if (!buf || count == 0) return 0; // Nothing to read
-
-	/* 验证用户空间缓冲区是否有效 */
-	if (!access_ok(buf, count)) return -EFAULT;
-
-	/* 在内核空间分配临时缓冲区 */
-	void* kbuf = kmalloc(count);
-	if (!kbuf) return -ENOMEM;
-	return do_read(fd, kbuf, count);
-}
-
-int64 sys_write(int32 fd, const void* buf, size_t count) {
-	if (fd < 0) return -EBADF; // Invalid file descriptor
-
-	if (!buf || count == 0) return 0; // Nothing to write
-
-	/* 验证用户空间缓冲区是否有效 */
-	if (!access_ok(buf, count)) return -EFAULT;
-
-	/* 在内核空间分配临时缓冲区 */
-	void* kbuf = kmalloc(count);
-	if (!kbuf) return -ENOMEM;
-
-	/* Set up file context for write operation */
-	struct fcontext fctx = {
-	    .fc_fd = fd,                   // File descriptor to write to
-	    .fc_path_remaining = NULL,     // No path needed for fd operation
-	    .user_flags = 0,                 // No special flags needed
-	    .fc_action = VFS_ACTION_WRITE, // Write operation
-	    .user_buf = (void*)kbuf,      // User buffer to write from
-	    .user_buf_size = count,       // Number of bytes to write
-	    .fc_task = current_task(),     // Current task
-	};
-
-	/* Send to fd_monkey to convert fd to file */
-	int32 ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_ACTION_OPEN, 0);
-	if (ret < 0) {
-		fcontext_cleanup(&fctx);
-		return ret;
-	}
-
-	/* Send to inode_monkey to perform the actual write */
-	ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_ACTION_WRITE, 0);
-
-	/* Clean up and return bytes written or error code */
-	fcontext_cleanup(&fctx);
-	return ret;
-}
-
-/* mount syscall implementation */
-int64 sys_mount(const char* source, const char* target, const char* fstype_name, uint64 flags, const void* data) {
-	// Copy strings from user space
-	char* ksource = NULL;
-	char* ktarget = NULL;
-	char* kfstype = NULL;
-	void* kdata = NULL;
-	int64 ret;
-
-	// Validate required arguments
-	if (!target || !fstype_name) return -EINVAL;
-
-	// Allocate and copy target path (required)
-	ktarget = kmalloc(PATH_MAX);
-	if (!ktarget) return -ENOMEM;
-	if (copy_from_user(ktarget, target, PATH_MAX)) {
-		ret = -EFAULT;
-		goto out_free;
-	}
-
-	// Allocate and copy fstype (required)
-	kfstype = kmalloc(PATH_MAX);
-	if (!kfstype) {
-		ret = -ENOMEM;
-		goto out_free;
-	}
-	if (copy_from_user(kfstype, fstype_name, PATH_MAX)) {
-		ret = -EFAULT;
-		goto out_free;
-	}
-
-	// If source is provided, allocate and copy it
-	if (source) {
-		ksource = kmalloc(PATH_MAX);
-		if (!ksource) {
-			ret = -ENOMEM;
-			goto out_free;
-		}
-		if (copy_from_user(ksource, source, PATH_MAX)) {
-			ret = -EFAULT;
-			goto out_free;
-		}
-	}
-
-	// Copy mount data if provided
-	if (data) {
-		// Assuming data is a null-terminated string
-		kdata = kmalloc(PATH_MAX); // Use appropriate size
-		if (!kdata) {
-			ret = -ENOMEM;
-			goto out_free;
-		}
-		if (copy_from_user(kdata, data, PATH_MAX)) {
-			ret = -EFAULT;
-			goto out_free;
-		}
-	}
-
-	// Call internal implementation
-	return do_mount(ksource, ktarget, kfstype, flags, kdata);
-	// 这些资源会在fcontext_cleanup中统一释放
-
-out_free:
-	// Always free allocated memory
-	if (ksource) kfree(ksource);
-	if (ktarget) kfree(ktarget);
-	if (kfstype) kfree(kfstype);
-	if (kdata) kfree(kdata);
-	return ret;
-}
-
-
