@@ -389,7 +389,7 @@ int32 path_monkey(struct fcontext* fctx) {
         }
 
         /* Process component with appropriate flags */
-        ret = MONKEY_WITH_ACTION(dentry_monkey, fctx, VFS_ACTION_PATHWALK, lookup_flags);
+        ret = MONKEY_WITH_ACTION(dentry_monkey, fctx, DENTRY_ACTION_LOOKUP, lookup_flags);
 		/* dentry_monkey, PATHWALK 会将fc_dentry和fc_string解析为下一级的fc_dentry */
         if (ret < 0) return ret;
 

@@ -177,3 +177,96 @@ int64 do_open(const char* pathname, int32 flags, mode_t mode) {
 	kfree(kpathname);
 	return ret;
 }
+
+
+
+/* Extended attribute implementations */
+
+/**
+ * do_setxattr - Set an extended attribute on a file
+ * @path: Path to the file
+ * @name: Name of the extended attribute
+ * @value: Value to set
+ * @size: Size of the value
+ * @flags: Flags (XATTR_CREATE, XATTR_REPLACE)
+ * @lookup_flags: Path lookup flags
+ *
+ * Sets an extended attribute on a file specified by path.
+ * Returns 0 on success or negative error code on failure.
+ */
+int64 do_setxattr(const char* path, const char* name, const void* value, size_t size, int flags, int lookup_flags) {
+    struct fcontext fctx = {
+        .fc_filename = path,
+        .fc_path_remaining = path,
+        .fc_buffer = (void*)value,
+        .fc_buffer_size = size,
+        .fc_action = VFS_ACTION_SETXATTR,
+        .fc_action_flags = lookup_flags,
+        .fc_flags = flags,
+        .fc_task = current_task(),
+    };
+    
+    /* Set up name in string context */
+    fctx.fc_charbuf = (char*)name;
+    fctx.fc_strlen = strlen(name);
+    fctx.fc_hash = full_name_hash(name, fctx.fc_strlen);
+    
+    /* Resolve the path and perform the operation */
+	int32 ret = MONKEY_WITH_ACTION(path_monkey, &fctx, PATH_ACTION_LOOKUP, lookup_flags);
+	if(ret || dentry_isDir(fctx.fc_dentry)){
+		fcontext_cleanup(&fctx);
+		return ret; // Error during path resolution
+	}
+
+	int32 ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, INODE_ACTION_SETXATTR,0);
+    
+    fcontext_cleanup(&fctx);
+    return ret;
+}
+
+/**
+ * do_fsetxattr - Set an extended attribute on a file descriptor
+ * @fd: File descriptor 
+ * @name: Name of the extended attribute
+ * @value: Value to set
+ * @size: Size of the value
+ * @flags: Flags (XATTR_CREATE, XATTR_REPLACE)
+ *
+ * Sets an extended attribute on a file specified by file descriptor.
+ * Returns 0 on success or negative error code on failure.
+ */
+int64 do_fsetxattr(int fd, const char* name, const void* value, size_t size, int flags) {
+    struct fcontext fctx = {
+        .fc_fd = fd,
+        .fc_buffer = (void*)value,
+        .fc_buffer_size = size,
+        .fc_action = VFS_ACTION_SETXATTR,
+        .fc_iostruct = (void*)(uintptr_t)flags,  /* Store flags in iostruct */
+        .fc_task = current_task(),
+    };
+    
+    /* Set up name in string context */
+    fctx.fc_charbuf = (char*)name;
+    fctx.fc_strlen = strlen(name);
+    fctx.fc_hash = full_name_hash(name, fctx.fc_strlen);
+    
+    /* Get the file from the file descriptor */
+    int32 ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_ACTION_OPEN, 0);
+    if (ret < 0) {
+        fcontext_cleanup(&fctx);
+        return ret;
+    }
+    
+    /* Perform the operation on the file's inode */
+	// 然后inode_monkey会智能判断目标file存在fc_dentry还是fc_file里
+    ret = MONKEY_WITH_ACTION(inode_monkey, &fctx, VFS_ACTION_SETXATTR, 0);
+    
+    fcontext_cleanup(&fctx);
+    return ret;
+}
+
+/* 
+ * Note: We don't need a separate do_lsetxattr function since do_setxattr
+ * handles both cases with the lookup_flags parameter. The sys_lsetxattr
+ * syscall will call do_setxattr with lookup_flags=0 to avoid following symlinks.
+ */

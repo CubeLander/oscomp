@@ -917,7 +917,7 @@ static int dentry_isMismatch(struct dentry* dentry, int64 lookup_flags) {
 	return 0;
 }
 
-int32 dentry_monkey_pathwalk(struct fcontext* fctx) {
+int32 dentry_monkey_lookup(struct fcontext* fctx) {
 	int error;
 	struct dentry* parent = fctx->fc_dentry;
 
@@ -990,22 +990,16 @@ int32 dentry_monkey_pathwalk(struct fcontext* fctx) {
 }
 
 int32 dentry_monkey(struct fcontext* fctx) {
-	// if (fctx->fc_action >= VFS_ACTION_MAX) return -EINVAL;
+	if (fctx->fc_action >= VFS_ACTION_MAX) return -EINVAL;
 
-	// monkey_intent_handler_t handler = dentry_intent_table[fctx->fc_action];
-	// if (!handler) return -ENOTSUP;
+	monkey_intent_handler_t handler = dentry_intent_table[fctx->fc_action];
+	if (!handler) return -ENOTSUP;
 
-	return dentry_monkey_pathwalk(fctx);
+	return handler(fctx);
 }
 // clang-format off
 monkey_intent_handler_t dentry_intent_table[VFS_ACTION_MAX] = {
-    [VFS_ACTION_PATHWALK] = dentry_monkey_pathwalk, 	// 处理fc_string的路径字符串，并继续执行path_walk
-	[VFS_ACTION_CREATE] = dentry_monkey, 
-	[VFS_ACTION_MKDIR] = dentry_monkey,
-    [VFS_ACTION_RMDIR] = dentry_monkey,         
-	[VFS_ACTION_UNLINK] = dentry_monkey, 
-	[VFS_ACTION_RENAME] = dentry_monkey,
-	[VFS_ACTION_MKNOD] = dentry_monkey_mknod,
+    [DENTRY_ACTION_LOOKUP] = dentry_monkey_lookup, 	// 处理fc_string的路径字符串，并继续执行path_walk
 
 };
 // clang-format on
