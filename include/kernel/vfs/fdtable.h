@@ -1,7 +1,7 @@
 #ifndef _FDTABLE_H
 #define _FDTABLE_H
 
-// #include <kernel/fs/vfs/file.h>
+// #include <kernel/vfs/file.h>
 #include <kernel/types.h>
 #include <kernel/util/atomic.h>
 #include <kernel/util/spinlock.h>

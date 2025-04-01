@@ -2,7 +2,7 @@
 #define _FILE_H
 
 #include "forward_declarations.h"
-#include <kernel/fs/vfs/path.h>
+#include <kernel/vfs/path.h>
 #include <kernel/util/atomic.h>
 #include <kernel/util/spinlock.h>
 #include <kernel/vfs.h>

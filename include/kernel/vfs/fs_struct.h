@@ -3,7 +3,7 @@
 
 #include <kernel/types.h>
 #include <kernel/vfs.h>
-#include <kernel/fs/vfs/file.h>
+#include <kernel/vfs/file.h>
 #include <kernel/util/atomic.h>
 #include <kernel/util/spinlock.h>
 

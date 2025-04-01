@@ -1,8 +1,8 @@
-#include <kernel/fs/vfs/dentry.h>
-#include <kernel/fs/vfs/file.h>
-#include <kernel/fs/vfs/inode.h>
-// #include <kernel/fs/vfs/namespace.h>
-#include <kernel/fs/vfs/path.h>
+#include <kernel/vfs/dentry.h>
+#include <kernel/vfs/file.h>
+#include <kernel/vfs/inode.h>
+// #include <kernel/vfs/namespace.h>
+#include <kernel/vfs/path.h>
 #include <kernel/vfs.h>
 #include <kernel/mm/kmalloc.h>
 #include <kernel/sched/process.h>

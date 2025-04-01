@@ -3,7 +3,7 @@
 #include "forward_declarations.h"
 #include <kernel/util.h>
 //#include <kernel/vfs.h>
-#include <kernel/fs/vfs/inode.h>
+#include <kernel/vfs/inode.h>
 
 struct dentry_operations;
 struct iattr;

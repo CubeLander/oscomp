@@ -1,5 +1,5 @@
 #include <kernel/fs/ext4_adaptor.h>
-#include <kernel/fs/vfs/superblock.h>
+#include <kernel/vfs/superblock.h>
 #include <kernel/vfs.h>
 #include <kernel/mm/kmalloc.h>
 

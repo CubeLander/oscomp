@@ -4,22 +4,22 @@
 
 
 
-#include <kernel/fs/vfs/dentry.h>
-#include <kernel/fs/vfs/file.h>
-#include <kernel/fs/vfs/inode.h>
-// #include <kernel/fs/vfs/namespace.h>
-#include <kernel/fs/vfs/addrspace.h>
-#include <kernel/fs/vfs/buffer_head.h>
-#include <kernel/fs/vfs/fiemap.h>
-#include <kernel/fs/vfs/fstype.h>
-#include <kernel/fs/vfs/io_vector.h>
-#include <kernel/fs/vfs/kiocb.h>
-#include <kernel/fs/vfs/path.h>
-#include <kernel/fs/vfs/superblock.h>
-#include <kernel/fs/vfs/vfsmount.h>
-#include <kernel/fs/vfs/fdtable.h>
-#include <kernel/fs/vfs/fs_struct.h>
-#include <kernel/fs/vfs/fcontext.h>
+#include <kernel/vfs/dentry.h>
+#include <kernel/vfs/file.h>
+#include <kernel/vfs/inode.h>
+// #include <kernel/vfs/namespace.h>
+#include <kernel/vfs/addrspace.h>
+#include <kernel/vfs/buffer_head.h>
+#include <kernel/vfs/fiemap.h>
+#include <kernel/vfs/fstype.h>
+#include <kernel/vfs/io_vector.h>
+#include <kernel/vfs/kiocb.h>
+#include <kernel/vfs/path.h>
+#include <kernel/vfs/superblock.h>
+#include <kernel/vfs/vfsmount.h>
+#include <kernel/vfs/fdtable.h>
+#include <kernel/vfs/fs_struct.h>
+#include <kernel/vfs/fcontext.h>
 
 
 #include <kernel/types.h>

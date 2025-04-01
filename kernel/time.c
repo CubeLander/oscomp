@@ -1,5 +1,5 @@
 #include <kernel/time.h>
-#include <kernel/fs/vfs/superblock.h>
+#include <kernel/vfs/superblock.h>
 
 /* System time variables */
 static struct timespec system_time;

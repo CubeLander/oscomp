@@ -1,7 +1,7 @@
 #ifndef _BLOCK_DEVICE_H
 #define _BLOCK_DEVICE_H
 
-#include <kernel/fs/vfs/inode.h>
+#include <kernel/vfs/inode.h>
 #include <kernel/types.h>
 #include <kernel/util/list.h>
 #include <kernel/util/spinlock.h>

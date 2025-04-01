@@ -1,8 +1,8 @@
 #ifndef _SUPERBLOCK_H
 #define _SUPERBLOCK_H
-//#include <kernel/fs/vfs/fstype.h>
+//#include <kernel/vfs/fstype.h>
 #include "forward_declarations.h"
-#include <kernel/fs/vfs/stat.h>
+#include <kernel/vfs/stat.h>
 #include <kernel/util/list.h>
 #include <kernel/util/spinlock.h>
 

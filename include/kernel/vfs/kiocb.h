@@ -2,7 +2,7 @@
 #define _KIOCB_H
 
 #include "forward_declarations.h"
-#include <kernel/fs/vfs/file.h>
+#include <kernel/vfs/file.h>
 
 /**
  * struct kiocb - Kernel I/O control block

@@ -2,7 +2,7 @@
 #define _STAT_H
 
 #include "forward_declarations.h"
-#include <kernel/fs/vfs/path.h>
+#include <kernel/vfs/path.h>
 
 
 

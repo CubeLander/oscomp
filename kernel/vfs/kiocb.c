@@ -1,5 +1,5 @@
-#include <kernel/fs/vfs/kiocb.h>
-#include <kernel/fs/vfs/file.h>
+#include <kernel/vfs/kiocb.h>
+#include <kernel/vfs/file.h>
 #include <kernel/util/spinlock.h>
 
 /**

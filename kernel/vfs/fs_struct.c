@@ -1,4 +1,4 @@
-// #include <kernel/fs/vfs/namespace.h>
+// #include <kernel/vfs/namespace.h>
 #include <kernel/mm/kmalloc.h>
 #include <kernel/util/string.h>
 #include <kernel/vfs.h>
