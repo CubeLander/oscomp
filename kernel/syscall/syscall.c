@@ -160,6 +160,8 @@ int64 sys_open(const char *pathname, int32 flags, mode_t mode) {
 
 
 	int32 ret = vfs_monkey(&fctx);
+	fcontext_cleanup(&fctx);
+
 
     kfree(kpathname);
     return ret;
@@ -178,9 +180,8 @@ int64 sys_close(int32 fd) {
         .fc_action = VFS_ACTION_CLOSE,  // 关闭操作
         .fc_task = current_task(),  // 当前任务
     };
-    
-    // 调用monkey框架处理关闭请求
-    int32 ret = vfs_monkey(&fctx);
+    int32 ret = MONKEY_WITH_ACTION(fd_monkey, &fctx, FD_ACTION_CLOSE, 0);
+	fcontext_cleanup(&fctx);
     
     return ret;
 }

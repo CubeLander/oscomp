@@ -46,6 +46,8 @@ struct fdtable {
 	atomic_t fdt_refcount;   /* Reference count */
 };
 
+int32 fd_monkey(struct fcontext* fctx);
+
 /* Process-level file table management */
 struct fdtable* fdtable_acquire(struct fdtable*);  // thread
 struct fdtable* fdtable_copy(struct fdtable*); // fork

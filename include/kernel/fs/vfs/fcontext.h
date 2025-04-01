@@ -74,6 +74,7 @@ struct fcontext{
 #define fc_is_last (*fc_path_remaining == 0)
 
 typedef int32 (*monkey_intent_handler_t)(struct fcontext* fctx);
+void fcontext_cleanup(struct fcontext* fctx);
 
 // clang-format off
 

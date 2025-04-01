@@ -68,7 +68,8 @@
 		"*.tcc": "cpp",
 		"optional": "cpp",
 		"ratio": "cpp",
-		"system_error": "cpp"
+		"system_error": "cpp",
+		"cstdlib": "c"
 	},
     "C_Cpp.vcFormat.newLine.closeBraceSameLine.emptyFunction": true,
     "C_Cpp.vcFormat.newLine.closeBraceSameLine.emptyType": true,
