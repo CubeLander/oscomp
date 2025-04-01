@@ -117,6 +117,8 @@ void fcontext_cleanup(struct fcontext* fctx);
 #define LOOKUP_MONKEY_FILE 		0x4000000000000000 /* require a regular file */
 #define LOOKUP_MONKEY_SYMLINK	0x8000000000000000 /* require a symlink */
 
+#define MOUNT_ROOTFS 	0x00000001 /* mount as rootfs */
+
 // 注意，指定查找文件或目录的类型时，只能三选一
 
 // clang-format on
@@ -158,6 +160,7 @@ enum monkey_action{
 	FS_ACTION_EXITFS,
 	FS_ACTION_MOUNT,
 	FS_ACTION_UMOUNT,
+	FS_ACTION_CREATESUPERBLOCK,
 
 	FD_ACTION_OPEN,
 	FD_ACTION_CLOSE,

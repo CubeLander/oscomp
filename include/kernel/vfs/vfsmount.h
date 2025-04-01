@@ -20,7 +20,7 @@ struct vfsmount {
 	struct list_head mnt_hash_node;       /* For hashtable */
 
 	/* Namespace mount list linkage */
-	struct mnt_namespace* mnt_ns;        /* Namespace containing this mount */
+	//struct mnt_namespace* mnt_ns;        /* Namespace containing this mount */
 	struct list_head mnt_node_namespace; /* Link in namespace */
 	struct list_head mnt_child_list;     /* List of child mounts */
 	struct list_head mnt_child_node;     /* Node in parent's child list */
