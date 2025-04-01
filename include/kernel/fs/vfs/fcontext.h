@@ -10,10 +10,6 @@
 //
 // No monarchs, no magic. Just reliable behavior.
 
-
-
-
-
 struct fcontext{
 	// 主语和主语路径解释
 	const char* fc_filename;

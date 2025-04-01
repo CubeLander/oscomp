@@ -101,7 +101,7 @@ int64 do_mount(const char* ksource, const char* ktarget, const char* kfstype, ui
 	}
 
 	// Perform the mount operation
-	ret = MONKEY_WITH_ACTION(inode_monkey, &mount_ctx, FS_ACTION_MOUNT, 0);
+	ret = MONKEY_WITH_ACTION(type->fs_monkey, &mount_ctx, FS_ACTION_MOUNT, 0);
 
 	fcontext_cleanup(&mount_ctx);
 	return ret;

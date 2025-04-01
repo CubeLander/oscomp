@@ -25,6 +25,8 @@ struct file {
 	fmode_t f_mode; /* File access mode */
 	loff_t f_pos;   /* Current file position */
 	uint32 f_flags; /* Kernel internal flags */
+
+	void* f_private;
 };
 
 /* 在 file.h 中为 f_flags 添加新的标志位 */
