@@ -6,7 +6,6 @@
 #include <kernel/util.h>
 #include <kernel/vfs.h>
 
-static struct dentry* __dentry_alloc(struct dentry* parent, const struct qstr* name);
 static void __dentry_free(struct dentry* dentry);
 
 static struct dentry* virtual_root_dentry = NULL;
@@ -164,8 +163,7 @@ int32 dentry_instantiate(struct dentry* dentry, struct inode* inode) {
 	return 0;
 }
 
-/* 保留现有函数，但将创建函数改为内部使用 */
-static struct dentry* __dentry_alloc(struct dentry* parent, const struct qstr* name) {
+struct dentry* dentry_alloc(struct dentry* parent, const struct qstr* name) {
 	struct dentry* dentry;
 
 	if (!name || !name->name) return NULL;
@@ -297,7 +295,7 @@ int32 dentry_monkey_lookup(struct fcontext* fctx) {
 	}
 
 	/* 3. 如果需要创建新dentry */
-	next_dentry = __dentry_alloc(parent, &qname);
+	next_dentry = dentry_alloc(parent, &qname);
 	if (next_dentry) {
 		next_dentry->d_flags |= DCACHE_NEGATIVE;
 
@@ -310,14 +308,14 @@ int32 dentry_monkey_lookup(struct fcontext* fctx) {
 }
 
 int32 dentry_monkey(struct fcontext* fctx) {
-	if (fctx->fc_action >= VFS_MAX) return -EINVAL;
+	if (fctx->fc_action >= VFS_ACTION_MAX) return -EINVAL;
 	monkey_intent_handler_t handler = dentry_intent_table[fctx->fc_action];
 	if (!handler) return -ENOTSUP;
 
 	return handler(fctx);
 }
 // clang-format off
-monkey_intent_handler_t dentry_intent_table[VFS_MAX] = {
+monkey_intent_handler_t dentry_intent_table[VFS_ACTION_MAX] = {
     [DENTRY_LOOKUP] = dentry_monkey_lookup, 	// 处理fc_string的路径字符串，并继续执行path_walk
 
 };

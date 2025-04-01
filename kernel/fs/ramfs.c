@@ -6,7 +6,7 @@
 /**
  * Handlers for superblock operations
  */
-static int32 ramfs_intent_alloc_inode(struct fcontext* fctx);
+static int32 ramfs_alloc_inode(struct fcontext* fctx);
 static int32 ramfs_intent_destroy_inode(struct fcontext* fctx);
 static int32 ramfs_intent_write_inode(struct fcontext* fctx);
 static int32 ramfs_intent_evict_inode(struct fcontext* fctx);
@@ -24,14 +24,6 @@ static int32 ramfs_intent_put_super(struct fcontext* fctx);
  * Returns 0 on success, negative error code on failure.
  */
 int32 ramfs_monkey(struct fcontext* fctx) {
-	if (!fctx) {
-		return -EINVAL;
-	}
-
-	/* Validate action is within range */
-	if (fctx->fc_action >= VFS_MAX || fctx->fc_action < 0) {
-		return -EINVAL;
-	}
 
 	/* Get the handler for this action */
 	monkey_intent_handler_t handler = ramfs_intent_table[fctx->fc_action];
@@ -78,9 +70,6 @@ static int32 ramfs_intent_mount(struct fcontext* fctx) {
 	void* data = fctx->fc_iostruct;
 	uint64 flags = fctx->user_flags;
 
-	/* 在context中设置设备ID */
-	fctx->io_dev = 0; // 对于ramfs，设备ID为0
-
 	/* 使用intent系统创建superblock */
 	int32 ret = MONKEY_WITH_ACTION(ramfs_monkey, fctx, FS_CREATE_SB, 0);
 	if (ret < 0) {
@@ -123,7 +112,7 @@ static int32 ramfs_intent_mount(struct fcontext* fctx) {
  * Implementation of superblock operation handlers using the intent system
  */
 
-static int32 ramfs_intent_alloc_inode(struct fcontext* fctx) {
+static int32 ramfs_alloc_inode(struct fcontext* fctx) {
 	struct superblock* sb = fctx->fc_superblock;
 
 	/* Allocate a new inode */
@@ -261,7 +250,6 @@ static struct inode* ramfs_adapter_alloc_inode(struct superblock* sb) {
  */
 static int32 ramfs_intent_create_superblock(struct fcontext* fctx) {
 	struct fstype* type = fctx->fc_fstype;
-	dev_t dev_id = fctx->io_dev;
 
 	/* 创建新的superblock */
 	struct superblock* sb = kzalloc(sizeof(struct superblock));
@@ -275,7 +263,7 @@ static int32 ramfs_intent_create_superblock(struct fcontext* fctx) {
 	sb->s_magic = RAMFS_MAGIC;
 	sb->s_time_granularity = 1;
 	sb->s_fstype = type;
-	sb->s_device_id = dev_id;
+	sb->s_device_id = 0;
 
 	/* 初始化链表 */
 	INIT_LIST_HEAD(&sb->s_list_mounts);
@@ -295,23 +283,16 @@ static int32 ramfs_intent_create_superblock(struct fcontext* fctx) {
 	atomic_set(&sb->s_ninodes, 0);
 	atomic64_set(&sb->s_next_ino, 1);
 
-	/* 创建根inode */
-	struct inode* root_inode = NULL;
-	struct fcontext alloc_inode_ctx = {
-	    .fc_fstype = type,
-	    .fc_superblock = sb,
-	};
+	fctx->fc_superblock = sb;
 
-	/* 使用intent系统分配inode */
-	int32 ret = MONKEY_WITH_ACTION(ramfs_monkey, &alloc_inode_ctx, SB_ALLOC_INODE, 0);
+	/* 创建根inode */
+	int32 ret = ramfs_alloc_inode(fctx);
 	if (ret < 0) {
-		kfree(sb);
 		return ret;
 	}
 
-	root_inode = (struct inode*)alloc_inode_ctx.fc_iostruct;
+	struct inode* root_inode = (struct inode*)fctx->fc_iostruct;
 	if (!root_inode) {
-		kfree(sb);
 		return -ENOMEM;
 	}
 
@@ -321,41 +302,23 @@ static int32 ramfs_intent_create_superblock(struct fcontext* fctx) {
 	root_inode->i_gid = 0;
 	root_inode->i_ino = 1;
 
-	/* 创建文件系统根dentry */
-	struct dentry* root_dentry = kzalloc(sizeof(struct dentry));
-	if (!root_dentry) {
-		inode_unref(root_inode);
-		kfree(sb);
-		return -ENOMEM;
-	}
-
-	/* 初始化根dentry */
-	atomic_set(&root_dentry->d_refcount, 1);
-	root_dentry->d_inode = root_inode;
-	root_dentry->d_parent = root_dentry; /* 根是自己的父节点 */
-
 	/* 创建一个名为"/" 的qstr */
-	struct qstr* root_name = kzalloc(sizeof(struct qstr));
-	if (!root_name) {
-		dentry_unref(root_dentry);
+	struct qstr* root_name = qstr_create("/");
+	if (IS_ERR_VALUE(PTR_ERR(root_name))) {
 		inode_unref(root_inode);
 		kfree(sb);
 		return -ENOMEM;
 	}
-
-	root_name->name = kstrdup("/");
-	root_name->len = 1;
-	root_name->hash = hash_string("/", 0);
-	root_dentry->d_name = root_name;
-
-	/* 初始化子目录列表 */
-	INIT_LIST_HEAD(&root_dentry->d_childList);
+	struct dentry* root_dentry = dentry_alloc(NULL, root_name);
+	qstr_free(root_name);
 
 	/* 设置superblock的根 */
 	sb->s_root = root_dentry;
 
 	/* 将创建的superblock存储在context中 */
 	fctx->fc_superblock = sb;
+	fctx->fc_iostruct = NULL;
+	// root_inode的引用从fc_iostruct传递给了root_dentry
 
 	return 0;
 }
@@ -363,7 +326,7 @@ static int32 ramfs_intent_create_superblock(struct fcontext* fctx) {
 /**
  * ramfs_intent_table - Maps action IDs to ramfs-specific handlers
  */
-static monkey_intent_handler_t ramfs_intent_table[VFS_MAX] = {
+static monkey_intent_handler_t ramfs_intent_table[VFS_ACTION_MAX] = {
     /* Common filesystem operations */
     [FS_MOUNT] = ramfs_intent_mount,
     [FS_UMOUNT] = ramfs_intent_umount,
@@ -372,7 +335,7 @@ static monkey_intent_handler_t ramfs_intent_table[VFS_MAX] = {
     [FS_CREATE_SB] = ramfs_intent_create_superblock,
 
     /* Superblock operations */
-    [SB_ALLOC_INODE] = ramfs_intent_alloc_inode,
+    [SB_ALLOC_INODE] = ramfs_alloc_inode,
     [SB_DESTROY_INODE] = ramfs_intent_destroy_inode,
     [SB_WRITE_INODE] = ramfs_intent_write_inode,
     [SB_EVICT_INODE] = ramfs_intent_evict_inode,

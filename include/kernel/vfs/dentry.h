@@ -40,6 +40,7 @@ struct dentry {
 };
 
 int32 dentry_monkey(struct fcontext* fctx);
+struct dentry* dentry_alloc(struct dentry* parent, const struct qstr* name);
 
 struct dentry* dentry_ref(struct dentry* dentry);
 int32 dentry_unref(struct dentry* dentry);
