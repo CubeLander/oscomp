@@ -32,6 +32,7 @@ struct fcontext{
 		};
 	};
 	struct fstype* fc_fstype;
+	struct superblock* fc_superblock;
 	// 注意，这里的obj_path会随着fc_path_remaining的变化而变化
 	// 直到*fc_path_remaining == 0
 

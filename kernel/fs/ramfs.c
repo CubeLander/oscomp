@@ -115,10 +115,10 @@ static int32 ramfs_intent_mount(struct fcontext* fctx) {
     
     /* Create root inode */
     struct inode* root_inode = NULL;
-    struct fcontext alloc_inode_ctx = {0};
-    alloc_inode_ctx.fc_fstype = type;
-    alloc_inode_ctx.fc_iostruct = sb;
-    
+    struct fcontext alloc_inode_ctx = {
+		.fc_fstype = type,
+		.fc_superblock = sb,
+	};
     /* Use our intent system to allocate an inode */
     int32 ret = MONKEY_WITH_ACTION(ramfs_monkey, &alloc_inode_ctx, SB_ACTION_ALLOC_INODE, 0);
     if (ret < 0) {
@@ -183,7 +183,7 @@ static int32 ramfs_intent_mount(struct fcontext* fctx) {
  */
 
 static int32 ramfs_intent_alloc_inode(struct fcontext* fctx) {
-    struct superblock* sb = (struct superblock*)fctx->fc_iostruct;
+    struct superblock* sb = fctx->fc_superblock;
     
     /* Allocate a new inode */
     struct inode* inode = kzalloc(sizeof(struct inode));
