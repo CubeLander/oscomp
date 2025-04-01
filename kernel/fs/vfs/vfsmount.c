@@ -229,7 +229,7 @@ int32 __mount_add(struct vfsmount* newmnt, struct path* mountpoint, int32 flags)
         return -EINVAL;
     
     /* Check if the mountpoint is already mounted */
-    parent = path_lookupMount(mountpoint);
+    parent = dentry_lookupMount(mountpoint->dentry);
     if (parent)
         return -EBUSY;
     

@@ -312,121 +312,6 @@ static int32 path_next_component(struct fcontext* fctx) {
 }
 
 /**
- * path_step - Process one step of path resolution
- * @fctx: File context
- *
- * Handles the component in fc_string, interpreting "." and ".." appropriately
- * and resolving the current path component.
- *
- * Returns:
- *   1: Component processed, but path resolution is not complete
- *   0: Path resolution is complete
- *   Negative: Error code
- */
-static int32 path_step(struct fcontext* fctx) {
-	int32 ret;
-
-	/* Skip empty components */
-	if (fctx->fc_strlen == 0) {
-		/* Clear the component data */
-		fctx->fc_charbuf = NULL;
-		return 1; /* Continue with next component */
-	}
-
-	/* Handle "." - current directory */
-	if (fctx->fc_strlen == 1 && fctx->fc_charbuf[0] == '.') {
-		/* Do nothing, stay in current directory */
-		/* Clear the component data */
-		fctx->fc_charbuf = NULL;
-		return 1; /* Continue with next component */
-	}
-
-	/* Handle ".." - parent directory */
-	if (fctx->fc_strlen == 2 && fctx->fc_charbuf[0] == '.' && fctx->fc_charbuf[1] == '.') {
-		/* Handle parent directory logic */
-		/* Check if at mount point */
-		if (fctx->fc_mount && fctx->fc_dentry == fctx->fc_mount->mnt_root) {
-			/* Cross mount point upward */
-			struct vfsmount* parent_mnt = fctx->fc_mount->mnt_path.mnt;
-			struct dentry* mountpoint = fctx->fc_mount->mnt_path.dentry;
-
-			if (parent_mnt && parent_mnt != fctx->fc_mount) {
-				mount_unref(fctx->fc_mount);
-				fctx->fc_mount = mount_ref(parent_mnt);
-
-				dentry_unref(fctx->fc_dentry);
-				fctx->fc_dentry = dentry_ref(mountpoint);
-
-				/* Then go up to parent directory */
-				struct dentry* parent = fctx->fc_dentry->d_parent;
-				if (parent) {
-					dentry_unref(fctx->fc_dentry);
-					fctx->fc_dentry = dentry_ref(parent);
-				}
-			}
-		} else {
-			/* Regular parent directory */
-			struct dentry* parent = fctx->fc_dentry->d_parent;
-			if (parent && parent != fctx->fc_dentry) {
-				dentry_unref(fctx->fc_dentry);
-				fctx->fc_dentry = dentry_ref(parent);
-			}
-		}
-
-		/* Clear the component data */
-		fctx->fc_charbuf = NULL;
-		fctx->fc_strlen = 0;
-		fctx->fc_hash = 0;
-
-		return 1; /* Continue with next component */
-	}
-
-	/* Current processing is the last component? */
-	bool is_last_component = (*fctx->fc_path_remaining == '\0');
-
-	/* Is this a create mode operation? */
-	bool create_mode = (fctx->fc_flags & O_CREAT) && is_last_component;
-
-	/* Now process the regular component in fc_string */
-	ret = MONKEY_WITH_ACTION(dentry_monkey, fctx, VFS_ACTION_PATHWALK, open_to_lookup_flags(fctx->fc_flags));
-
-	/* Handle negative dentry case */
-	if (dentry_isNegative(fctx->fc_dentry)) {
-		/* For intermediate component that doesn't exist, we can't continue */
-		if (!is_last_component) { return -ENOENT; /* Return ENOENT immediately for non-existent intermediate component */ }
-
-		/* For last component, return to caller with the negative dentry state */
-		/* Let the caller decide how to handle it based on the original intent */
-		return 0; /* Successfully resolved to a negative dentry */
-	}
-
-	/* Check for mount point */
-	if (fctx->fc_dentry->d_flags & DCACHE_MOUNTED) {
-		/* Cross mount point */
-		struct vfsmount* mounted = fctx->fc_dentry->d_mount;
-		if (mounted) {
-			if (fctx->fc_mount) mount_unref(fctx->fc_mount);
-			fctx->fc_mount = mount_ref(mounted);
-
-			/* Switch to mounted filesystem's root */
-			struct dentry* mnt_root = dentry_ref(mounted->mnt_root);
-			dentry_unref(fctx->fc_dentry);
-			fctx->fc_dentry = mnt_root;
-		}
-	}
-
-	/* Clear the processed component */
-	fctx->fc_charbuf = NULL;
-	fctx->fc_strlen = 0;
-	fctx->fc_hash = 0;
-
-	/* Determine if there are more components */
-	if (is_last_component) { return 0; /* Completed all path resolution */ }
-
-	return 1; /* More components to process */
-}
-
-/**
  * isAbsolutePath - Check if a path is absolute
  * @path: Path string to check
  *
@@ -447,44 +332,101 @@ static void path_acquireRoot(struct path* path) {
 }
 
 /**
- * path_monkey - Handle path traversal
+ * path_monkey - Handle path traversal with unified dentry approach
  * @fctx: File context
  *
+ * Resolves paths for all operation types, resulting in either:
+ * - A positive dentry for existing objects (lookup/read/write)
+ * - A negative dentry for creation operations
+ * 
  * Returns: 0 for success, negative value for error
  */
 int32 path_monkey(struct fcontext* fctx) {
-	int32 ret;
+    int32 ret;
+    bool is_create_intent;
 
-	/* Validate context */
-	if (!fctx || !fctx->fc_path_remaining) return -EINVAL;
+    /* Validate context */
+    if (!fctx || !fctx->fc_path_remaining) return -EINVAL;
 
-	/* Handle absolute path */
-	if (isAbsolutePath(fctx->fc_path_remaining)) {
-		fctx->fc_path_remaining++; /* Skip leading slash */
-		path_acquireRoot(&fctx->fc_path);
-	}
+    /* Determine operation intent */
+    is_create_intent = (fctx->fc_action == VFS_ACTION_CREATE || 
+                        fctx->fc_action == VFS_ACTION_MKDIR || 
+                        fctx->fc_action == VFS_ACTION_MKNOD ||
+                        ((fctx->fc_action == VFS_ACTION_OPEN) && (fctx->fc_flags & O_CREAT)));
 
-	/* Initialize dentry and mount if needed */
-	if (!fctx->fc_dentry) {
-		if (fctx->fc_file) {
-			fctx->fc_dentry = dentry_ref(fctx->fc_file->f_path.dentry);
-			fctx->fc_mount = mount_ref(fctx->fc_file->f_path.mnt);
-		} else {
-			fctx->fc_dentry = dentry_ref(fctx->fc_task->fs->pwd.dentry);
-			fctx->fc_mount = mount_ref(fctx->fc_task->fs->pwd.mnt);
-		}
-	}
+    /* Handle absolute path */
+    if (isAbsolutePath(fctx->fc_path_remaining)) {
+        fctx->fc_path_remaining++; /* Skip leading slash */
+        path_acquireRoot(&fctx->fc_path);
+    }
 
-	/* Main path resolution loop */
-	while (true) {
-		/* Extract next component */
-		ret = path_next_component(fctx);
-		if (ret <= 0) { return (ret < 0) ? ret : 0; /* Return error or success */ }
+    /* Initialize dentry and mount if needed */
+    if (!fctx->fc_dentry) {
+        if (fctx->fc_file) {
+            fctx->fc_dentry = dentry_ref(fctx->fc_file->f_path.dentry);
+            fctx->fc_mount = mount_ref(fctx->fc_file->f_path.mnt);
+        } else {
+            fctx->fc_dentry = dentry_ref(fctx->fc_task->fs->pwd.dentry);
+            fctx->fc_mount = mount_ref(fctx->fc_task->fs->pwd.mnt);
+        }
+    }
 
-		/* Process the component */
-		ret = path_step(fctx);
-		if (ret <= 0) { return (ret < 0) ? ret : 0; /* Return error or success */ }
+    /* Main path resolution loop */
+    while (true) {
+        /* Extract next component */
+        ret = path_next_component(fctx);
+        if (ret <= 0) return (ret < 0) ? ret : 0; /* Return error or success */
 
-		/* Continue loop for next component */
-	}
+        /* Check if this is the last component */
+        bool is_last_component = (*fctx->fc_path_remaining == '\0');
+
+        /* For last component of create operations, use LOOKUP_CREATE flag */
+        uint32 lookup_flags = 0;
+        if (is_create_intent && is_last_component) {
+            lookup_flags = open_to_lookup_flags(fctx->fc_flags) | LOOKUP_CREATE;
+        } else {
+            lookup_flags = open_to_lookup_flags(fctx->fc_flags);
+        }
+
+        /* Process component with appropriate flags */
+        ret = MONKEY_WITH_ACTION(dentry_monkey, fctx, VFS_ACTION_PATHWALK, lookup_flags);
+		/* dentry_monkey, PATHWALK 会将fc_dentry和fc_string解析为下一级的fc_dentry */
+        if (ret < 0) return ret;
+
+        /* For create operations, negative dentry on last component is expected and ok */
+        if (is_last_component) {
+            if (dentry_isNegative(fctx->fc_dentry)) {
+                if (!is_create_intent) {
+                    return -ENOENT; /* Error for non-create operations */
+                }
+                /* Success for create operations - leave negative dentry */
+            }
+            return 0; /* Path resolution complete */
+        }
+
+        /* Non-last component must exist for all operations */
+        if (dentry_isNegative(fctx->fc_dentry)) {
+            return -ENOENT; /* Intermediate component doesn't exist */
+        }
+
+        /* Check for mount point and cross if needed */
+        if (fctx->fc_dentry->d_flags & DCACHE_MOUNTED) {
+            /* Cross mount point */
+            struct vfsmount* mounted = fctx->fc_dentry->d_mount;
+            if (mounted) {
+                if (fctx->fc_mount) mount_unref(fctx->fc_mount);
+                fctx->fc_mount = mount_ref(mounted);
+
+                /* Switch to mounted filesystem's root */
+                struct dentry* mnt_root = dentry_ref(mounted->mnt_root);
+                dentry_unref(fctx->fc_dentry);
+                fctx->fc_dentry = mnt_root;
+            }
+        }
+
+        /* Clear component data before processing next component */
+        fctx->fc_charbuf = NULL;
+        fctx->fc_strlen = 0;
+        fctx->fc_hash = 0;
+    }
 }

@@ -301,7 +301,7 @@ int32 vfs_path_lookup(struct dentry* base_dentry, struct vfsmount* base_mnt, con
 		/* Check if this is a mount point */
 		if (flags & LOOKUP_AUTOMOUNT && dentry_isMountpoint(dentry)) {
 			/* Find the mount for this mountpoint */
-			struct vfsmount* mounted = dentry_lookupMountpoint(dentry);
+			struct vfsmount* mounted = dentry_lookupMount(dentry);
 			if (mounted) {
 				/* Cross mount point downward */
 				if (mnt) mount_unref(mnt);

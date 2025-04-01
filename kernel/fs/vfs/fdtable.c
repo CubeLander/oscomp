@@ -1,10 +1,10 @@
 
-#include <kernel/vfs.h>
 #include <kernel/mm/kmalloc.h>
 #include <kernel/sched.h>
 #include <kernel/sprint.h>
 #include <kernel/types.h>
 #include <kernel/util/string.h>
+#include <kernel/vfs.h>
 #include <sys/poll.h>
 
 #define FDTABLE_INIT_SIZE 16
@@ -708,7 +708,7 @@ int32 do_close(int32 fd) {
  * Kernel-internal implementation of lseek syscall
  */
 off_t do_lseek(int32 fd, off_t offset, int32 whence) {
-	struct file* filp = fdtable_getFile(current_task()->fdtable,fd);
+	struct file* filp = fdtable_getFile(current_task()->fdtable, fd);
 	if (!filp) return -EBADF;
 
 	loff_t pos = file_llseek(filp, offset, whence);
@@ -720,7 +720,7 @@ off_t do_lseek(int32 fd, off_t offset, int32 whence) {
  * Kernel-internal implementation of read syscall
  */
 ssize_t do_read(int32 fd, void* buf, size_t count) {
-	struct file* filp = fdtable_getFile(current_task()->fdtable,fd);
+	struct file* filp = fdtable_getFile(current_task()->fdtable, fd);
 	if (!filp) return -EBADF;
 
 	ssize_t ret = file_read(filp, buf, count, &filp->f_pos);
@@ -732,7 +732,7 @@ ssize_t do_read(int32 fd, void* buf, size_t count) {
  * Kernel-internal implementation of write syscall
  */
 ssize_t do_write(int32 fd, const void* buf, size_t count) {
-	struct file* filp = fdtable_getFile(current_task()->fdtable,fd);
+	struct file* filp = fdtable_getFile(current_task()->fdtable, fd);
 	if (!filp) return -EBADF;
 
 	ssize_t ret = file_write(filp, buf, count, &filp->f_pos);
@@ -740,19 +740,37 @@ ssize_t do_write(int32 fd, const void* buf, size_t count) {
 	return ret;
 }
 
+int32 fd_monkey_open(struct fcontext* fctx) {
+	fctx->fc_file = fdtable_getFile(fctx->fc_task->fdtable, fctx->fc_fd);
+	CHECK_PTR_VALID(fctx->fc_file, -EBADF);
+	return 0;
+}
+
+int32 fd_monkey_close(struct fcontext* fctx) {
+	fctx->fc_file = fdtable_getFile(fctx->fc_task->fdtable, fctx->fc_fd);
+	CHECK_PTR_VALID(fctx->fc_file, -EBADF);
+	fdtable_closeFd(fctx->fc_task->fdtable, fctx->fc_fd);
+	// 减少文件引用计数
+	int32 ret = file_unref(fctx->fc_file);
+	return 0;
+}
 
 /**
  * fd_monkey - translate a possible fd in fcontext to file object
  * @fctx: fcontext to be translated
  * @return: 0 on success or no fd in ctx, negative error code on unexpected failures
  */
-int32 fd_monkey(struct fcontext* fctx){
+int32 fd_monkey(struct fcontext* fctx) {
+	if (fctx->fc_action >= VFS_ACTION_MAX) return -EINVAL;
+	monkey_intent_handler_t handler = fd_intent_table[fctx->fc_action];
+	if (!handler) return -ENOTSUP;
+	return handler(fctx);
 
-	fctx->fc_file = fdtable_getFile(fctx->fc_task->fdtable, fctx->fc_fd);
-	CHECK_PTR_VALID(fctx->fc_file, -EBADF);
-
-	fctx->fc_inode = inode_ref(fctx->fc_file->f_inode);
-	CHECK_PTR_VALID(fctx->fc_inode, -EBADF);
-
-	return 0;	
+	return 0;
 }
+
+monkey_intent_handler_t fd_intent_table[VFS_ACTION_MAX] = {
+    [FD_ACTION_OPEN] = fd_monkey_open, // 处理fc_string的路径字符串，并继续执行path_walk
+    [FD_ACTION_CLOSE] = fd_monkey_close,
+
+};

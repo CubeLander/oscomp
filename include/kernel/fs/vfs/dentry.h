@@ -32,6 +32,7 @@ struct dentry {
 
 	uint64 d_time;
 	// d_time 记录这条路径（dentry）最后一次被成功验证的时间戳。
+	// 对于验证dentry有效性的问题，填一个意图，然后把context发给fs_specific_monkey。
 
 	struct list_node d_lruListNode;   /* 全局dentry的LRU链表，在引用计数归零时加入，便于复用 */
 	                                  /* 只在内存压力时释放*/
@@ -40,25 +41,15 @@ struct dentry {
 
 
 int32 init_dentry_hashtable(void);
-struct dentry* dentry_mkdir(struct dentry* parent, const char* name, fmode_t mode);
-struct dentry* dentry_acquire(struct dentry* parent, const struct qstr* name, int32 is_dir, bool revalidate, bool alloc);
-struct dentry* dentry_ref(struct dentry* dentry);
-int32 dentry_unref(struct dentry* dentry);
-struct dentry* dentry_mknod(struct dentry* parent, const char* name, mode_t mode, dev_t dev);
-struct vfsmount* dentry_lookupMountpoint(struct dentry* dentry);
-
-
-/*上面是仔细调过的，下面是没调的*/
-
-
-/*dentry lru链表相关*/
 void init_dentry_lruList(void);
-uint32 shrink_dentry_lru(uint32 count);
-
-/*dentry生命周期*/
 
 
 struct dentry* dentry_lookup(struct dentry* parent, const struct qstr* name);
+struct dentry* dentry_ref(struct dentry* dentry);
+int32 dentry_unref(struct dentry* dentry);
+struct vfsmount* dentry_lookupMount(struct dentry* dentry);
+
+
 
 void dentry_prune(struct dentry* dentry); /*unsafe*/
 int32 dentry_delete(struct dentry* dentry);
@@ -69,21 +60,15 @@ int32 dentry_instantiate(struct dentry* dentry, struct inode* inode);
 int32 dentry_rename(struct dentry* old_dentry, struct dentry* new_dentry);
 
 /*符号链接支持*/
-// struct dentry* dentry_follow_link(struct dentry* link_dentry);
 char* dentry_allocRawPath(struct dentry* dentry);
-void dentry_prune(struct dentry* dentry); /*从父目录的子列表和哈希表中分离，但保留结构体和资源*/
+void dentry_prune(struct dentry* dentry);
 
-/*用于网络文件系统等需要验证缓存有效性的场景*/
-int32 dentry_revalidate(struct dentry* dentry, uint32 flags);
 
 int32 setattr_prepare(struct dentry* dentry, struct iattr* attr);
 int32 notify_change(struct dentry* dentry, struct iattr* attr);
 
 /*inode hook functions*/
 int32 dentry_permission(struct dentry* dentry, int32 mask);
-//int32 dentry_getxattr(struct dentry* dentry, const char* name, void* value, size_t size);
-//int32 dentry_setxattr(struct dentry* dentry, const char* name, const void* value, size_t size, int32 flags);
-//int32 dentry_removexattr(struct dentry* dentry, const char* name);
 
 /*
  * Dentry state flags

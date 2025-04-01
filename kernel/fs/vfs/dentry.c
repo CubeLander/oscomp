@@ -679,239 +679,6 @@ int32 dentry_revalidate(struct dentry* dentry, uint32 flags) {
 //     return ERR_PTR(res);
 // }
 
-/**
- * dentry_allocRawPath - Generate the full path string for a dentry
- * @dentry: The dentry to generate path for
- *
- * Returns a dynamically allocated string containing the full path
- * from root to the dentry. The caller is responsible for freeing
- * this memory using kfree().
- *
- * Returns: Pointer to allocated path string, or NULL on failure
- */
-char* dentry_allocRawPath(struct dentry* dentry) {
-	if (!dentry) return NULL;
-
-	// First pass: measure the path length
-	int32 path_len = 0;
-	struct dentry* d = dentry_ref(dentry);
-	struct dentry* temp;
-
-	while (d) {
-		// Handle root directory case
-		if (d == d->d_parent) {
-			// Root directory is just "/"
-			path_len += 1;
-			dentry_unref(d);
-			break;
-		}
-
-		// Add name length plus '/' separator
-		path_len += d->d_name->len + 1;
-
-		// Move to parent
-		temp = dentry_ref(d->d_parent);
-		dentry_unref(d);
-		d = temp;
-	}
-
-	// Allocate buffer with exact size needed (plus null terminator)
-	char* buf = kmalloc(path_len + 1);
-	if (!buf) return NULL;
-
-	// Second pass: build the path from end to beginning
-	char* end = buf + path_len;
-	*end = '\0';
-	char* start = end;
-
-	d = dentry_ref(dentry);
-
-	while (d) {
-		spinlock_lock(&d->d_lock);
-
-		// Handle root directory case
-		if (d == d->d_parent) {
-			// Root directory is just "/"
-			if (start == end) --start;
-			*start = '/';
-			spinlock_unlock(&d->d_lock);
-			dentry_unref(d);
-			break;
-		}
-
-		// Add path component
-		int32 name_len = d->d_name->len;
-		start -= name_len;
-		memcpy(start, d->d_name->name, name_len);
-
-		// Add directory separator
-		--start;
-		*start = '/';
-
-		// Get parent before releasing lock
-		struct dentry* parent = dentry_ref(d->d_parent);
-		spinlock_unlock(&d->d_lock);
-
-		dentry_unref(d);
-		d = parent;
-	}
-
-	// If path isn't starting at the beginning of the buffer
-	// (shouldn't happen with proper length calculation)
-	if (start > buf) {
-		int32 actual_len = end - start + 1; // +1 for null terminator
-		memmove(buf, start, actual_len);
-	}
-
-	return buf;
-}
-
-/**
- * dentry_permission - 检查dentry对象的权限
- * @dentry: 要检查权限的dentry对象
- * @mask: 请求的权限掩码(MAY_READ、MAY_WRITE、MAY_EXEC等)
- *
- * 检查给定dentry对象是否具有请求的权限，首先尝试调用
- * 文件系统特定的permission操作，如果不存在则回退到
- * 通用的inode_permission检查。
- *
- * 返回: 如果有权限返回0，否则返回负错误码
- */
-int32 dentry_permission(struct dentry* dentry, int32 mask) {
-	struct inode* inode;
-
-	if (!dentry) return -EINVAL;
-
-	inode = dentry->d_inode;
-	if (!inode) return -ENOENT; /* 负向dentry没有inode */
-
-	/* 回退到inode权限检查 */
-	return inode_checkPermission(inode, mask);
-}
-
-/**
- * dentry_getxattr - 获取dentry对象的扩展属性
- * @dentry: 要操作的dentry对象
- * @name: 扩展属性名称
- * @value: 输出缓冲区，用于存储属性值
- * @size: 缓冲区大小
- *
- * 获取dentry对象的指定扩展属性值。如果value为NULL或size为0，
- * 则只返回属性值的长度而不复制数据。
- *
- * 返回: 成功返回属性值的长度，错误返回负错误码
- */
-// int32 dentry_getxattr(struct dentry *dentry, const char *name, void *value, size_t size)
-// {
-//     struct inode *inode;
-
-//     if (!dentry || !name)
-//         return -EINVAL;
-
-//     inode = dentry->d_inode;
-//     if (!inode)
-//         return -ENOENT;
-
-//     /* 检查inode是否支持getxattr操作 */
-//     if (!inode->i_op || !inode->i_op->getxattr)
-//         return -EOPNOTSUPP;
-
-//     /* 调用inode的getxattr方法 */
-//     return inode->i_op->getxattr(dentry, name, value, size);
-// }
-
-/**
- * dentry_setxattr - 设置dentry对象的扩展属性
- * @dentry: 要操作的dentry对象
- * @name: 扩展属性名称
- * @value: 属性值
- * @size: 属性值的大小
- * @flags: 设置标志(如XATTR_CREATE、XATTR_REPLACE)
- *
- * 为dentry对象设置指定的扩展属性。可以指定以下标志：
- * - XATTR_CREATE: 仅当属性不存在时创建
- * - XATTR_REPLACE: 仅当属性已存在时替换
- *
- * 返回: 成功返回0，错误返回负错误码
- */
-// int32 dentry_setxattr(struct dentry *dentry, const char *name, const void *value, size_t size, int32 flags)
-// {
-//     struct inode *inode;
-
-//     if (!dentry || !name || (!value && size > 0))
-//         return -EINVAL;
-
-//     inode = dentry->d_inode;
-//     if (!inode)
-//         return -ENOENT;
-
-//     /* 检查写入权限 */
-//     int32 err = inode_checkPermission(inode, MAY_WRITE);
-//     if (err)
-//         return err;
-
-//     /* 检查inode是否支持setxattr操作 */
-//     if (!inode->i_op || !inode->i_op->setxattr)
-//         return -EOPNOTSUPP;
-
-//     /* 调用inode的setxattr方法 */
-//     err = inode->i_op->setxattr(dentry, name, value, size, flags);
-
-//     if (err == 0) {
-//         /* 属性修改，标记inode为脏 */
-//         inode_setDirty(inode);
-
-//         /* 如果文件系统支持，更新ctime */
-//         //inode->i_ctime = current_time(inode->i_superblock);
-// 		inode->i_ctime = current_time(inode->i_superblock);
-//     }
-
-//     return err;
-// }
-
-/**
- * dentry_removexattr - 移除dentry对象的扩展属性
- * @dentry: 要操作的dentry对象
- * @name: 要移除的扩展属性名称
- *
- * 移除dentry对象的指定扩展属性。
- *
- * 返回: 成功返回0，错误返回负错误码
- */
-// int32 dentry_removexattr(struct dentry *dentry, const char *name)
-// {
-//     struct inode *inode;
-//     int32 error;
-
-//     if (!dentry || !name)
-//         return -EINVAL;
-
-//     inode = dentry->d_inode;
-//     if (!inode)
-//         return -ENOENT;
-
-//     /* 检查写入权限 */
-//     error = inode_checkPermission(inode, MAY_WRITE);
-//     if (error)
-//         return error;
-
-//     /* 检查inode是否支持removexattr操作 */
-//     if (!inode->i_op || !inode->i_op->removexattr)
-//         return -EOPNOTSUPP;
-
-//     /* 调用inode的removexattr方法 */
-//     error = inode->i_op->removexattr(dentry, name);
-
-//     if (error == 0) {
-//         /* 属性修改，标记inode为脏 */
-//         inode_setDirty(inode);
-
-//         /* 如果文件系统支持，更新ctime */
-//         inode->i_ctime = current_time(inode->i_superblock);
-//     }
-
-//     return error;
-// }
 
 /**
  * 从目录树中剥离 dentry
@@ -1043,44 +810,6 @@ int32 setattr_prepare(struct dentry* dentry, struct iattr* attr) {
 }
 
 /**
- * notify_change - Notify filesystem of attribute changes
- * @dentry: dentry of the changed inode
- * @attr: attributes that changed
- *
- * After validating attribute changes with setattr_prepare,
- * this function applies the changes and notifies the filesystem.
- *
- * Returns 0 on success, negative error code on failure.
- */
-// int32 notify_change(struct dentry* dentry, struct iattr* attr) {
-// 	struct inode* inode = dentry->d_inode;
-// 	int32 error;
-
-// 	if (!inode) return -EINVAL;
-
-// 	/* Validate changes */
-// 	error = setattr_prepare(dentry, attr);
-// 	if (error) return error;
-
-// 	/* Call the filesystem's setattr method if available */
-// 	if (inode->i_op && inode->i_op->setattr) return inode->i_op->setattr(dentry, attr);
-
-// 	/* Apply attribute changes to the inode */
-// 	if (attr->ia_valid & ATTR_MODE) inode->i_mode = attr->ia_mode;
-// 	if (attr->ia_valid & ATTR_UID) inode->i_uid = attr->ia_uid;
-// 	if (attr->ia_valid & ATTR_GID) inode->i_gid = attr->ia_gid;
-// 	if (attr->ia_valid & ATTR_SIZE) inode->i_size = attr->ia_size;
-// 	if (attr->ia_valid & ATTR_ATIME) inode->i_atime = attr->ia_atime;
-// 	if (attr->ia_valid & ATTR_MTIME) inode->i_mtime = attr->ia_mtime;
-// 	if (attr->ia_valid & ATTR_CTIME) inode->i_ctime = attr->ia_ctime;
-
-// 	/* Mark the inode as dirty */
-// 	inode_setDirty(inode);
-
-// 	return 0;
-// }
-
-/**
  * dentry_lookup - Find dentry in the dentry cache
  * @parent: Parent directory dentry
  * @name: Name to look up in the parent directory
@@ -1149,47 +878,6 @@ static struct dentry* __dentry_lookupHash(struct dentry* parent, const struct qs
 static inline int32 __dentry_hash(struct dentry* dentry) { return hashtable_insert(&dentry_hashtable, &dentry->d_hashNode); }
 
 /**
- * dentry_mkdir - Create a directory under a parent dentry
- * @parent: Parent directory dentry
- * @name: Name for the new directory (not a dentry)
- * @mode: Directory mode/permissions
- *
- * Creates a new directory with the given parent.
- *
- * Returns: New dentry with increased refcount on success, NULL or ERR_PTR on failure
- */
-struct dentry* dentry_mkdir(struct dentry* parent, const char* name, fmode_t mode) {
-	struct dentry* dentry;
-	struct qstr qname;
-	int32 error;
-
-	unlikely_if(!parent || !name || !*name) return ERR_PTR(-EINVAL);
-	unlikely_if(!dentry_isDir(parent)) return ERR_PTR(-ENOTDIR);
-
-	struct inode* dir_inode = parent->d_inode;
-	unlikely_if(!dir_inode) return ERR_PTR(-ENOENT);
-
-	error = inode_permission(dir_inode, MAY_WRITE | MAY_EXEC);
-	unlikely_if(error) return ERR_PTR(error);
-
-	unlikely_if(!dir_inode->i_op || !dir_inode->i_op->mkdir) return ERR_PTR(-EPERM);
-
-	/* Allocate new dentry */
-	dentry = dentry_acquireRaw(parent, name, 1, false, true);
-	unlikely_if(!dentry) return ERR_PTR(-ENOMEM);
-
-	/* Call filesystem-specific mkdir */
-	error = inode_mkdir(parent->d_inode, dentry, mode);
-	if (error != 0) {
-		/* Failed - clean up the dentry */
-		dentry_unref(dentry);
-		return ERR_PTR(error);
-	}
-
-	/* Dentry reference count is already 1 from dentry_acquire */
-	return dentry;
-}
-/**
  * dentry_isEmptyDir - Check if a directory is empty
  * @dentry: The directory entry to check
  *
@@ -1205,46 +893,8 @@ bool dentry_isEmptyDir(struct dentry* dentry) {
 	return list_empty(&dentry->d_childList);
 }
 
-/**
- * dentry_mknod - Create a special file with a given name in a directory
- * @parent: Parent directory dentry
- * @name: Name of the new node
- * @mode: File mode including type (S_IFCHR, S_IFBLK, etc.)
- * @dev: Device number for device files
- *
- * Creates a special file (device node, FIFO, socket) in the specified directory.
- *
- * Returns: New dentry on success, ERR_PTR on failure
- */
-struct dentry* dentry_monkey_mknod(struct fcontext* fctx) {
-	struct dentry* parent = fctx->fc_dentry;
-	struct qstr* name = &fctx->fc_string;
-	int32 error;
 
-	MONKEY_WITH_ACTION(fctx, VFS_ACTION_LOOKUP);
-	/* Create a dentry for this name in the parent directory */
-	dentry = dentry_acquireRaw(parent, name, 0, false, true);
-	unlikely_if(!dentry) return ERR_PTR(-ENOMEM);
-
-	/* Check if entry already exists */
-	if (dentry->d_inode) {
-		error = -EEXIST;
-		goto out;
-	}
-
-	/* Call inode layer to create the node */
-	error = inode_mknod(parent->d_inode, dentry, mode, dev);
-	if (error) goto out;
-
-	/* Success */
-	return dentry;
-
-out:
-	dentry_unref(dentry);
-	return ERR_PTR(error);
-}
-
-struct vfsmount* dentry_lookupMountpoint(struct dentry* dentry) {
+struct vfsmount* dentry_lookupMount(struct dentry* dentry) {
 	if (!dentry) return NULL;
 
 	/* Simply return the direct mount reference if this is a mountpoint */
@@ -1323,36 +973,29 @@ int32 dentry_monkey_pathwalk(struct fcontext* fctx) {
 	}
 
 	/* 3. 如果需要创建新dentry */
-	if (fctx->fc_action_flags & LOOKUP_CREATE) {
-		next_dentry = __dentry_alloc(parent, &qname);
-		if (next_dentry) {
-			/* 添加到哈希表 */
-			int32 ret = __dentry_hash(next_dentry);
-			if (ret == 0) { next_dentry->d_flags |= DCACHE_HASHED; }
-			/* 标记为负向dentry */
-			next_dentry->d_flags |= DCACHE_NEGATIVE;
+	next_dentry = __dentry_alloc(parent, &qname);
+	if (next_dentry) {
+		/* 添加到哈希表 */
+		int32 ret = __dentry_hash(next_dentry);
+		if (ret == 0) { next_dentry->d_flags |= DCACHE_HASHED; }
+		/* 标记为负向dentry */
+		next_dentry->d_flags |= DCACHE_NEGATIVE;
 
-			/* 更新fctx */
-			dentry_unref(fctx->fc_dentry);
-			fctx->fc_dentry = next_dentry;
-			return 0;
-		}
-		return -ENOMEM;
+		/* 更新fctx */
+		dentry_unref(fctx->fc_dentry);
+		fctx->fc_dentry = next_dentry;
+		return 0;
 	}
-
-	/* 找不到且不能创建 */
-	return -ENOENT;
+	return -ENOMEM;
 }
 
-
-
 int32 dentry_monkey(struct fcontext* fctx) {
-	if (fctx->fc_action >= VFS_ACTION_MAX) return -EINVAL;
+	// if (fctx->fc_action >= VFS_ACTION_MAX) return -EINVAL;
 
-	monkey_intent_handler_t handler = dentry_intent_table[fctx->fc_action];
-	if (!handler) return -ENOTSUP;
+	// monkey_intent_handler_t handler = dentry_intent_table[fctx->fc_action];
+	// if (!handler) return -ENOTSUP;
 
-	return handler(fctx);
+	return dentry_monkey_pathwalk(fctx);
 }
 // clang-format off
 monkey_intent_handler_t dentry_intent_table[VFS_ACTION_MAX] = {

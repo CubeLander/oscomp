@@ -165,4 +165,24 @@ int64 sys_open(const char *pathname, int32 flags, mode_t mode) {
     return ret;
 }
 
+
+
+int64 sys_close(int32 fd) {
+    if (fd < 0)
+        return -EBADF;  // 无效的文件描述符
+    
+    struct fcontext fctx = {
+        .fc_fd = fd,           // 要关闭的文件描述符
+        .fc_path_remaining = NULL,  // 不需要路径
+        .fc_flags = 0,        // 不需要特殊标志
+        .fc_action = VFS_ACTION_CLOSE,  // 关闭操作
+        .fc_task = current_task(),  // 当前任务
+    };
+    
+    // 调用monkey框架处理关闭请求
+    int32 ret = vfs_monkey(&fctx);
+    
+    return ret;
+}
+
 /* Add the rest of your syscall implementations here */
