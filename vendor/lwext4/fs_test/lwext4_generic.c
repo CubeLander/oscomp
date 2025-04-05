@@ -121,7 +121,7 @@ static bool open_linux(void)
 	file_dev_name_set(input_name);
 	bd = file_dev_get();
 	if (!bd) {
-		kprintf("open_filedev: fail\n");
+		printf("open_filedev: fail\n");
 		return false;
 	}
 	return true;
@@ -133,12 +133,12 @@ static bool open_windows(void)
 	file_windows_name_set(input_name);
 	bd = file_windows_dev_get();
 	if (!bd) {
-		kprintf("open_winpartition: fail\n");
+		printf("open_winpartition: fail\n");
 		return false;
 	}
 	return true;
 #else
-	kprintf("open_winpartition: this mode should be used only under windows "
+	printf("open_winpartition: this mode should be used only under windows "
 	       "!\n");
 	return false;
 #endif
@@ -203,7 +203,7 @@ static bool parse_opt(int argc, char **argv)
 			exit(0);
 			break;
 		default:
-			kprintf("%s", usage);
+			printf("%s", usage);
 			return false;
 		}
 	}
@@ -215,14 +215,14 @@ int main(int argc, char **argv)
 	if (!parse_opt(argc, argv))
 		return EXIT_FAILURE;
 
-	kprintf("ext4_generic\n");
-	kprintf("test conditions:\n");
-	kprintf("\timput name: %s\n", input_name);
-	kprintf("\trw size: %d\n", rw_szie);
-	kprintf("\trw count: %d\n", rw_count);
+	printf("ext4_generic\n");
+	printf("test conditions:\n");
+	printf("\timput name: %s\n", input_name);
+	printf("\trw size: %d\n", rw_szie);
+	printf("\trw count: %d\n", rw_count);
 
 	if (!open_filedev()) {
-		kprintf("open_filedev error\n");
+		printf("open_filedev error\n");
 		return EXIT_FAILURE;
 	}
 
@@ -270,6 +270,6 @@ int main(int argc, char **argv)
 	if (!test_lwext4_umount())
 		return EXIT_FAILURE;
 
-	kprintf("\ntest finished\n");
+	printf("\ntest finished\n");
 	return EXIT_SUCCESS;
 }

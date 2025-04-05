@@ -74,10 +74,10 @@ static void printf_io_timings(long int diff)
 	if (!stats)
 		return;
 
-	kprintf("io_timings:\n");
-	kprintf("  io_read: %.3f%%\n", (double)stats->io_read);
-	kprintf("  io_write: %.3f%%\n", (double)stats->io_write);
-	kprintf("  io_cpu: %.3f%%\n", (double)stats->cpu);
+	printf("io_timings:\n");
+	printf("  io_read: %.3f%%\n", (double)stats->io_read);
+	printf("  io_write: %.3f%%\n", (double)stats->io_write);
+	printf("  io_cpu: %.3f%%\n", (double)stats->cpu);
 }
 
 void test_lwext4_dir_ls(const char *path)
@@ -86,7 +86,7 @@ void test_lwext4_dir_ls(const char *path)
 	ext4_dir d;
 	const ext4_direntry *de;
 
-	kprintf("ls %s\n", path);
+	printf("ls %s\n", path);
 
 	ext4_dir_open(&d, path);
 	de = ext4_dir_entry_next(&d);
@@ -94,7 +94,7 @@ void test_lwext4_dir_ls(const char *path)
 	while (de) {
 		memcpy(sss, de->name, de->name_length);
 		sss[de->name_length] = 0;
-		kprintf("  %s%s\n", entry_to_str(de->inode_type), sss);
+		printf("  %s%s\n", entry_to_str(de->inode_type), sss);
 		de = ext4_dir_entry_next(&d);
 	}
 	ext4_dir_close(&d);
@@ -105,19 +105,19 @@ void test_lwext4_mp_stats(void)
 	struct ext4_mount_stats stats;
 	ext4_mount_point_stats("/mp/", &stats);
 
-	kprintf("********************\n");
-	kprintf("ext4_mount_point_stats\n");
-	kprintf("inodes_count = %" PRIu32 "\n", stats.inodes_count);
-	kprintf("free_inodes_count = %" PRIu32 "\n", stats.free_inodes_count);
-	kprintf("blocks_count = %" PRIu32 "\n", (uint32_t)stats.blocks_count);
-	kprintf("free_blocks_count = %" PRIu32 "\n",
+	printf("********************\n");
+	printf("ext4_mount_point_stats\n");
+	printf("inodes_count = %" PRIu32 "\n", stats.inodes_count);
+	printf("free_inodes_count = %" PRIu32 "\n", stats.free_inodes_count);
+	printf("blocks_count = %" PRIu32 "\n", (uint32_t)stats.blocks_count);
+	printf("free_blocks_count = %" PRIu32 "\n",
 	       (uint32_t)stats.free_blocks_count);
-	kprintf("block_size = %" PRIu32 "\n", stats.block_size);
-	kprintf("block_group_count = %" PRIu32 "\n", stats.block_group_count);
-	kprintf("blocks_per_group= %" PRIu32 "\n", stats.blocks_per_group);
-	kprintf("inodes_per_group = %" PRIu32 "\n", stats.inodes_per_group);
-	kprintf("volume_name = %s\n", stats.volume_name);
-	kprintf("********************\n");
+	printf("block_size = %" PRIu32 "\n", stats.block_size);
+	printf("block_group_count = %" PRIu32 "\n", stats.block_group_count);
+	printf("blocks_per_group= %" PRIu32 "\n", stats.blocks_per_group);
+	printf("inodes_per_group = %" PRIu32 "\n", stats.inodes_per_group);
+	printf("volume_name = %s\n", stats.volume_name);
+	printf("********************\n");
 }
 
 void test_lwext4_block_stats(void)
@@ -125,18 +125,18 @@ void test_lwext4_block_stats(void)
 	if (!bd)
 		return;
 
-	kprintf("********************\n");
-	kprintf("ext4 blockdev stats\n");
-	kprintf("bdev->bread_ctr = %" PRIu32 "\n", bd->bdif->bread_ctr);
-	kprintf("bdev->bwrite_ctr = %" PRIu32 "\n", bd->bdif->bwrite_ctr);
+	printf("********************\n");
+	printf("ext4 blockdev stats\n");
+	printf("bdev->bread_ctr = %" PRIu32 "\n", bd->bdif->bread_ctr);
+	printf("bdev->bwrite_ctr = %" PRIu32 "\n", bd->bdif->bwrite_ctr);
 
-	kprintf("bcache->ref_blocks = %" PRIu32 "\n", bd->bc->ref_blocks);
-	kprintf("bcache->max_ref_blocks = %" PRIu32 "\n", bd->bc->max_ref_blocks);
-	kprintf("bcache->lru_ctr = %" PRIu32 "\n", bd->bc->lru_ctr);
+	printf("bcache->ref_blocks = %" PRIu32 "\n", bd->bc->ref_blocks);
+	printf("bcache->max_ref_blocks = %" PRIu32 "\n", bd->bc->max_ref_blocks);
+	printf("bcache->lru_ctr = %" PRIu32 "\n", bd->bc->lru_ctr);
 
-	kprintf("\n");
+	printf("\n");
 
-	kprintf("********************\n");
+	printf("********************\n");
 }
 
 bool test_lwext4_dir_test(int len)
@@ -149,23 +149,23 @@ bool test_lwext4_dir_test(int len)
 	long int stop;
 	long int start;
 
-	kprintf("test_lwext4_dir_test: %d\n", len);
+	printf("test_lwext4_dir_test: %d\n", len);
 	io_timings_clear();
 	start = get_ms();
 
-	kprintf("directory create: /mp/dir1\n");
+	printf("directory create: /mp/dir1\n");
 	r = ext4_dir_mk("/mp/dir1");
 	if (r != EOK) {
-		kprintf("ext4_dir_mk: rc = %d\n", r);
+		printf("ext4_dir_mk: rc = %d\n", r);
 		return false;
 	}
 
-	kprintf("add files to: /mp/dir1\n");
+	printf("add files to: /mp/dir1\n");
 	for (i = 0; i < len; ++i) {
-		ksprintf(path, "/mp/dir1/f%d", i);
+		sprintf(path, "/mp/dir1/f%d", i);
 		r = ext4_fopen(&f, path, "wb");
 		if (r != EOK) {
-			kprintf("ext4_fopen: rc = %d\n", r);
+			printf("ext4_fopen: rc = %d\n", r);
 			return false;
 		}
 	}
@@ -173,8 +173,8 @@ bool test_lwext4_dir_test(int len)
 	stop = get_ms();
 	diff = stop - start;
 	test_lwext4_dir_ls("/mp/dir1");
-	kprintf("test_lwext4_dir_test: time: %d ms\n", (int)diff);
-	kprintf("test_lwext4_dir_test: av: %d ms/entry\n", (int)diff / (len + 1));
+	printf("test_lwext4_dir_test: time: %d ms\n", (int)diff);
+	printf("test_lwext4_dir_test: av: %d ms/entry\n", (int)diff / (len + 1));
 	printf_io_timings(diff);
 	return true;
 }
@@ -203,9 +203,9 @@ bool test_lwext4_file_test(uint8_t *rw_buff, uint32_t rw_size, uint32_t rw_count
 
 	ext4_file f;
 
-	kprintf("file_test:\n");
-	kprintf("  rw size: %" PRIu32 "\n", rw_size);
-	kprintf("  rw count: %" PRIu32 "\n", rw_count);
+	printf("file_test:\n");
+	printf("  rw size: %" PRIu32 "\n", rw_size);
+	printf("  rw count: %" PRIu32 "\n", rw_count);
 
 	/*Add hello world file.*/
 	r = ext4_fopen(&f, "/mp/hello.txt", "wb");
@@ -216,11 +216,11 @@ bool test_lwext4_file_test(uint8_t *rw_buff, uint32_t rw_size, uint32_t rw_count
 	start = get_ms();
 	r = ext4_fopen(&f, "/mp/test1", "wb");
 	if (r != EOK) {
-		kprintf("ext4_fopen ERROR = %d\n", r);
+		printf("ext4_fopen ERROR = %d\n", r);
 		return false;
 	}
 
-	kprintf("ext4_write: %" PRIu32 " * %" PRIu32 " ...\n", rw_size,
+	printf("ext4_write: %" PRIu32 " * %" PRIu32 " ...\n", rw_size,
 	       rw_count);
 	for (i = 0; i < rw_count; ++i) {
 
@@ -233,7 +233,7 @@ bool test_lwext4_file_test(uint8_t *rw_buff, uint32_t rw_size, uint32_t rw_count
 	}
 
 	if (i != rw_count) {
-		kprintf("  file_test: rw_count = %" PRIu32 "\n", i);
+		printf("  file_test: rw_count = %" PRIu32 "\n", i);
 		return false;
 	}
 
@@ -242,8 +242,8 @@ bool test_lwext4_file_test(uint8_t *rw_buff, uint32_t rw_size, uint32_t rw_count
 	size_bytes = rw_size * rw_count;
 	size_bytes = (size_bytes * 1000) / 1024;
 	kbps = (size_bytes) / (diff + 1);
-	kprintf("  write time: %d ms\n", (int)diff);
-	kprintf("  write speed: %" PRIu32 " KB/s\n", kbps);
+	printf("  write time: %d ms\n", (int)diff);
+	printf("  write speed: %" PRIu32 " KB/s\n", kbps);
 	printf_io_timings(diff);
 	r = ext4_fclose(&f);
 
@@ -251,11 +251,11 @@ bool test_lwext4_file_test(uint8_t *rw_buff, uint32_t rw_size, uint32_t rw_count
 	start = get_ms();
 	r = ext4_fopen(&f, "/mp/test1", "r+");
 	if (r != EOK) {
-		kprintf("ext4_fopen ERROR = %d\n", r);
+		printf("ext4_fopen ERROR = %d\n", r);
 		return false;
 	}
 
-	kprintf("ext4_read: %" PRIu32 " * %" PRIu32 " ...\n", rw_size, rw_count);
+	printf("ext4_read: %" PRIu32 " * %" PRIu32 " ...\n", rw_size, rw_count);
 
 	for (i = 0; i < rw_count; ++i) {
 		r = ext4_fread(&f, rw_buff, rw_size, &size);
@@ -268,7 +268,7 @@ bool test_lwext4_file_test(uint8_t *rw_buff, uint32_t rw_size, uint32_t rw_count
 	}
 
 	if (i != rw_count) {
-		kprintf("  file_test: rw_count = %" PRIu32 "\n", i);
+		printf("  file_test: rw_count = %" PRIu32 "\n", i);
 		return false;
 	}
 
@@ -277,8 +277,8 @@ bool test_lwext4_file_test(uint8_t *rw_buff, uint32_t rw_size, uint32_t rw_count
 	size_bytes = rw_size * rw_count;
 	size_bytes = (size_bytes * 1000) / 1024;
 	kbps = (size_bytes) / (diff + 1);
-	kprintf("  read time: %d ms\n", (int)diff);
-	kprintf("  read speed: %d KB/s\n", (int)kbps);
+	printf("  read time: %d ms\n", (int)diff);
+	printf("  read speed: %d KB/s\n", (int)kbps);
 	printf_io_timings(diff);
 
 	r = ext4_fclose(&f);
@@ -291,28 +291,28 @@ void test_lwext4_cleanup(void)
 	long int diff;
 	int r;
 
-	kprintf("\ncleanup:\n");
+	printf("\ncleanup:\n");
 	r = ext4_fremove("/mp/hello.txt");
 	if (r != EOK && r != ENOENT) {
-		kprintf("ext4_fremove error: rc = %d\n", r);
+		printf("ext4_fremove error: rc = %d\n", r);
 	}
 
-	kprintf("remove /mp/test1\n");
+	printf("remove /mp/test1\n");
 	r = ext4_fremove("/mp/test1");
 	if (r != EOK && r != ENOENT) {
-		kprintf("ext4_fremove error: rc = %d\n", r);
+		printf("ext4_fremove error: rc = %d\n", r);
 	}
 
-	kprintf("remove /mp/dir1\n");
+	printf("remove /mp/dir1\n");
 	io_timings_clear();
 	start = get_ms();
 	r = ext4_dir_rm("/mp/dir1");
 	if (r != EOK && r != ENOENT) {
-		kprintf("ext4_fremove ext4_dir_rm: rc = %d\n", r);
+		printf("ext4_fremove ext4_dir_rm: rc = %d\n", r);
 	}
 	stop = get_ms();
 	diff = stop - start;
-	kprintf("cleanup: time: %d ms\n", (int)diff);
+	printf("cleanup: time: %d ms\n", (int)diff);
 	printf_io_timings(diff);
 }
 
@@ -324,7 +324,7 @@ bool test_lwext4_mount(struct ext4_blockdev *bdev, struct ext4_bcache *bcache)
 	bd = bdev;
 
 	if (!bd) {
-		kprintf("test_lwext4_mount: no block device\n");
+		printf("test_lwext4_mount: no block device\n");
 		return false;
 	}
 
@@ -332,25 +332,25 @@ bool test_lwext4_mount(struct ext4_blockdev *bdev, struct ext4_bcache *bcache)
 
 	r = ext4_device_register(bd, "ext4_fs");
 	if (r != EOK) {
-		kprintf("ext4_device_register: rc = %d\n", r);
+		printf("ext4_device_register: rc = %d\n", r);
 		return false;
 	}
 
 	r = ext4_mount("ext4_fs", "/mp/", false);
 	if (r != EOK) {
-		kprintf("ext4_mount: rc = %d\n", r);
+		printf("ext4_mount: rc = %d\n", r);
 		return false;
 	}
 
 	r = ext4_recover("/mp/");
 	if (r != EOK && r != ENOTSUP) {
-		kprintf("ext4_recover: rc = %d\n", r);
+		printf("ext4_recover: rc = %d\n", r);
 		return false;
 	}
 
 	r = ext4_journal_start("/mp/");
 	if (r != EOK) {
-		kprintf("ext4_journal_start: rc = %d\n", r);
+		printf("ext4_journal_start: rc = %d\n", r);
 		return false;
 	}
 
@@ -366,13 +366,13 @@ bool test_lwext4_umount(void)
 
 	r = ext4_journal_stop("/mp/");
 	if (r != EOK) {
-		kprintf("ext4_journal_stop: fail %d", r);
+		printf("ext4_journal_stop: fail %d", r);
 		return false;
 	}
 
 	r = ext4_umount("/mp/");
 	if (r != EOK) {
-		kprintf("ext4_umount: fail %d", r);
+		printf("ext4_umount: fail %d", r);
 		return false;
 	}
 	return true;

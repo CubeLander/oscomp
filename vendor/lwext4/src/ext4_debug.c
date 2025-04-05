@@ -31,7 +31,7 @@
  */
 /**
  * @file  ext4_debug.c
- * @brief Debug kprintf and assert macros.
+ * @brief Debug printf and assert macros.
  */
 
 #include <ext4_config.h>
