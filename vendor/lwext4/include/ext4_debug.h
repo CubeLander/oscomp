@@ -31,7 +31,7 @@
  */
 /**
  * @file  ext4_debug.c
- * @brief Debug kprintf and assert macros.
+ * @brief Debug printf and assert macros.
  */
 
 #ifndef EXT4_DEBUG_H_
@@ -144,15 +144,15 @@ uint32_t ext4_dmask_get(void);
 #if CONFIG_DEBUG_PRINTF
 #include <stdio.h>
 
-/**@brief   Debug kprintf.*/
+/**@brief   Debug printf.*/
 #define ext4_dbg(m, ...)                                                       \
 	do {                                                                   \
 		if ((m) & ext4_dmask_get()) {                                  \
 			if (!((m) & DEBUG_NOPREFIX)) {                         \
-				kprintf("%s", ext4_dmask_id2str(m));            \
-				kprintf("l: %d   ", __LINE__);                  \
+				printf("%s", ext4_dmask_id2str(m));            \
+				printf("l: %d   ", __LINE__);                  \
 			}                                                      \
-			kprintf(__VA_ARGS__);                                   \
+			printf(__VA_ARGS__);                                   \
 			fflush(stdout);                                        \
 		}                                                              \
 	} while (0)
@@ -168,7 +168,7 @@ uint32_t ext4_dmask_get(void);
 #define ext4_assert(_v)                                                        \
 	do {                                                                   \
 		if (!(_v)) {                                                   \
-			kprintf("assertion failed:\nfile: %s\nline: %d\n",      \
+			printf("assertion failed:\nfile: %s\nline: %d\n",      \
 			       __FILE__, __LINE__);                            \
 			       while (1)				       \
 				       ;				       \

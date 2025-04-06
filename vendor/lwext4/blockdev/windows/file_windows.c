@@ -67,7 +67,7 @@ static int file_open(struct ext4_blockdev *bdev)
 	BOOL bResult = FALSE;
 	DWORD junk;
 
-	ksprintf(path, "\\\\.\\%s", fname);
+	sprintf(path, "\\\\.\\%s", fname);
 
 	dev_file =
 	    CreateFile(path, GENERIC_READ | GENERIC_WRITE,

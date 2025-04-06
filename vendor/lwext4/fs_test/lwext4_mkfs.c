@@ -78,7 +78,7 @@ static bool open_linux(void)
 	file_dev_name_set(input_name);
 	bd = file_dev_get();
 	if (!bd) {
-		kprintf("open_filedev: fail\n");
+		printf("open_filedev: fail\n");
 		return false;
 	}
 	return true;
@@ -90,12 +90,12 @@ static bool open_windows(void)
 	file_windows_name_set(input_name);
 	bd = file_windows_dev_get();
 	if (!bd) {
-		kprintf("open_winpartition: fail\n");
+		printf("open_winpartition: fail\n");
 		return false;
 	}
 	return true;
 #else
-	kprintf("open_winpartition: this mode should be used only under windows "
+	printf("open_winpartition: this mode should be used only under windows "
 	       "!\n");
 	return false;
 #endif
@@ -144,7 +144,7 @@ static bool parse_opt(int argc, char **argv)
 			exit(0);
 			break;
 		default:
-			kprintf("%s", usage);
+			printf("%s", usage);
 			return false;
 		}
 	}
@@ -155,7 +155,7 @@ static bool parse_opt(int argc, char **argv)
 	case 4096:
 		break;
 	default:
-		kprintf("parse_opt: block_size = %"PRIu32" unsupported\n",
+		printf("parse_opt: block_size = %"PRIu32" unsupported\n",
 				info.block_size);
 		return false;
 	}
@@ -166,7 +166,7 @@ static bool parse_opt(int argc, char **argv)
 	case F_SET_EXT4:
 		break;
 	default:
-		kprintf("parse_opt: fs_type = %"PRIu32" unsupported\n", fs_type);
+		printf("parse_opt: fs_type = %"PRIu32" unsupported\n", fs_type);
 		return false;
 	}
 
@@ -177,47 +177,47 @@ int main(int argc, char **argv)
 {
 	int r;
 	if (!parse_opt(argc, argv)){
-		kprintf("parse_opt error\n");
+		printf("parse_opt error\n");
 		return EXIT_FAILURE;
 	}
 
 	if (!open_filedev()) {
-		kprintf("open_filedev error\n");
+		printf("open_filedev error\n");
 		return EXIT_FAILURE;
 	}
 
 	if (verbose)
 		ext4_dmask_set(DEBUG_ALL);
 
-	kprintf("ext4_mkfs: ext%d\n", fs_type);
+	printf("ext4_mkfs: ext%d\n", fs_type);
 	r = ext4_mkfs(&fs, bd, &info, fs_type);
 	if (r != EOK) {
-		kprintf("ext4_mkfs error: %d\n", r);
+		printf("ext4_mkfs error: %d\n", r);
 		return EXIT_FAILURE;
 	}
 
 	memset(&info, 0, sizeof(struct ext4_mkfs_info));
 	r = ext4_mkfs_read_info(bd, &info);
 	if (r != EOK) {
-		kprintf("ext4_mkfs_read_info error: %d\n", r);
+		printf("ext4_mkfs_read_info error: %d\n", r);
 		return EXIT_FAILURE;
 	}
 
-	kprintf("Created filesystem with parameters:\n");
-	kprintf("Size: %"PRIu64"\n", info.len);
-	kprintf("Block size: %"PRIu32"\n", info.block_size);
-	kprintf("Blocks per group: %"PRIu32"\n", info.blocks_per_group);
-	kprintf("Inodes per group: %"PRIu32"\n",	info.inodes_per_group);
-	kprintf("Inode size: %"PRIu32"\n", info.inode_size);
-	kprintf("Inodes: %"PRIu32"\n", info.inodes);
-	kprintf("Journal blocks: %"PRIu32"\n", info.journal_blocks);
-	kprintf("Features ro_compat: 0x%x\n", info.feat_ro_compat);
-	kprintf("Features compat: 0x%x\n", info.feat_compat);
-	kprintf("Features incompat: 0x%x\n", info.feat_incompat);
-	kprintf("BG desc reserve: %"PRIu32"\n", info.bg_desc_reserve_blocks);
-	kprintf("Descriptor size: %"PRIu32"\n",info.dsc_size);
-	kprintf("Label: %s\n", info.label);
+	printf("Created filesystem with parameters:\n");
+	printf("Size: %"PRIu64"\n", info.len);
+	printf("Block size: %"PRIu32"\n", info.block_size);
+	printf("Blocks per group: %"PRIu32"\n", info.blocks_per_group);
+	printf("Inodes per group: %"PRIu32"\n",	info.inodes_per_group);
+	printf("Inode size: %"PRIu32"\n", info.inode_size);
+	printf("Inodes: %"PRIu32"\n", info.inodes);
+	printf("Journal blocks: %"PRIu32"\n", info.journal_blocks);
+	printf("Features ro_compat: 0x%x\n", info.feat_ro_compat);
+	printf("Features compat: 0x%x\n", info.feat_compat);
+	printf("Features incompat: 0x%x\n", info.feat_incompat);
+	printf("BG desc reserve: %"PRIu32"\n", info.bg_desc_reserve_blocks);
+	printf("Descriptor size: %"PRIu32"\n",info.dsc_size);
+	printf("Label: %s\n", info.label);
 
-	kprintf("\nDone ...\n");
+	printf("\nDone ...\n");
 	return EXIT_SUCCESS;
 }

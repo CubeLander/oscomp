@@ -234,14 +234,14 @@ static int exec_op_code(const char *opcode)
 		if (opcode[strlen(op_codes[i].func)] != ' ')
 			continue;
 
-		kprintf("%s\n", opcode);
+		printf("%s\n", opcode);
 		opcode += strlen(op_codes[i].func);
 		/*Call*/
 
 		clock_t t = get_ms();
 		r = op_call[i].lwext4_call(opcode);
 
-		kprintf("rc: %d, time: %ums\n", r, (unsigned int)(get_ms() - t));
+		printf("rc: %d, time: %ums\n", r, (unsigned int)(get_ms() - t));
 
 		break;
 	}
@@ -257,20 +257,20 @@ static int server_open(void)
 	memset(&serv_addr, 0, sizeof(serv_addr));
 
 	if (winsock_init() < 0) {
-		kprintf("winsock_init() error\n");
+		printf("winsock_init() error\n");
 		exit(-1);
 	}
 
 	fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (fd < 0) {
-		kprintf("socket() error: %s\n", strerror(errno));
+		printf("socket() error: %s\n", strerror(errno));
 		exit(-1);
 	}
 
 	int yes = 1;
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (void *)&yes,
 		       sizeof(int))) {
-		kprintf("setsockopt() error: %s\n", strerror(errno));
+		printf("setsockopt() error: %s\n", strerror(errno));
 		exit(-1);
 	}
 
@@ -279,12 +279,12 @@ static int server_open(void)
 	serv_addr.sin_port = htons(connection_port);
 
 	if (bind(fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr))) {
-		kprintf("bind() error: %s\n", strerror(errno));
+		printf("bind() error: %s\n", strerror(errno));
 		exit(-1);
 	}
 
 	if (listen(fd, 1)) {
-		kprintf("listen() error: %s\n", strerror(errno));
+		printf("listen() error: %s\n", strerror(errno));
 		exit(-1);
 	}
 
@@ -329,7 +329,7 @@ static bool parse_opt(int argc, char **argv)
 			exit(0);
 			break;
 		default:
-			kprintf("%s", usage);
+			printf("%s", usage);
 			return false;
 		}
 	}
@@ -348,7 +348,7 @@ int main(int argc, char *argv[])
 
 	listenfd = server_open();
 
-	kprintf("lwext4_server: listening on port: %d\n", connection_port);
+	printf("lwext4_server: listening on port: %d\n", connection_port);
 
 	memset(write_buffer, RW_BUFFER_PATERN, MAX_RW_BUFFER);
 	while (1) {
@@ -357,7 +357,7 @@ int main(int argc, char *argv[])
 		n = recv(connfd, op_code, sizeof(op_code), 0);
 
 		if (n < 0) {
-			kprintf("recv() error: %s fd = %d\n", strerror(errno),
+			printf("recv() error: %s fd = %d\n", strerror(errno),
 			       connfd);
 			break;
 		}
@@ -368,7 +368,7 @@ int main(int argc, char *argv[])
 
 		n = send(connfd, (void *)&r, sizeof(r), 0);
 		if (n < 0) {
-			kprintf("send() error: %s fd = %d\n", strerror(errno),
+			printf("send() error: %s fd = %d\n", strerror(errno),
 			       connfd);
 			break;
 		}
@@ -387,7 +387,7 @@ static int device_register(const char *p)
 	char dev_name[32];
 
 	if (sscanf(p, "%d %d %s", &dev, &cache_mode, dev_name) != 3) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
@@ -415,7 +415,7 @@ static int mount(const char *p)
 	int rc;
 
 	if (sscanf(p, "%s %s", dev_name, mount_point) != 2) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
@@ -445,7 +445,7 @@ static int umount(const char *p)
 	int rc;
 
 	if (sscanf(p, "%s", mount_point) != 1) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
@@ -471,7 +471,7 @@ static int mount_point_stats(const char *p)
 	struct ext4_mount_stats stats;
 
 	if (sscanf(p, "%s %d", mount_point, &d) != 2) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
@@ -481,20 +481,20 @@ static int mount_point_stats(const char *p)
 		return rc;
 
 	if (verbose) {
-		kprintf("\tinodes_count = %" PRIu32"\n", stats.inodes_count);
-		kprintf("\tfree_inodes_count = %" PRIu32"\n",
+		printf("\tinodes_count = %" PRIu32"\n", stats.inodes_count);
+		printf("\tfree_inodes_count = %" PRIu32"\n",
 				stats.free_inodes_count);
-		kprintf("\tblocks_count = %" PRIu64"\n", stats.blocks_count);
-		kprintf("\tfree_blocks_count = %" PRIu64"\n",
+		printf("\tblocks_count = %" PRIu64"\n", stats.blocks_count);
+		printf("\tfree_blocks_count = %" PRIu64"\n",
 				stats.free_blocks_count);
-		kprintf("\tblock_size = %" PRIu32"\n", stats.block_size);
-		kprintf("\tblock_group_count = %" PRIu32"\n",
+		printf("\tblock_size = %" PRIu32"\n", stats.block_size);
+		printf("\tblock_group_count = %" PRIu32"\n",
 				stats.block_group_count);
-		kprintf("\tblocks_per_group = %" PRIu32"\n",
+		printf("\tblocks_per_group = %" PRIu32"\n",
 				stats.blocks_per_group);
-		kprintf("\tinodes_per_group = %" PRIu32"\n",
+		printf("\tinodes_per_group = %" PRIu32"\n",
 				stats.inodes_per_group);
-		kprintf("\tvolume_name = %s\n", stats.volume_name);
+		printf("\tvolume_name = %s\n", stats.volume_name);
 	}
 
 	return rc;
@@ -506,7 +506,7 @@ static int cache_write_back(const char *p)
 	int en;
 
 	if (sscanf(p, "%s %d", mount_point, &en) != 2) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
@@ -518,7 +518,7 @@ static int fremove(const char *p)
 	char path[255];
 
 	if (sscanf(p, "%s", path) != 1) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
@@ -533,12 +533,12 @@ static int file_open(const char *p)
 	int rc;
 
 	if (sscanf(p, "%d %s %s", &fid, path, flags) != 3) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
 	if (!(fid < MAX_FILES)) {
-		kprintf("File id too big\n");
+		printf("File id too big\n");
 		return -1;
 	}
 
@@ -556,17 +556,17 @@ static int file_close(const char *p)
 	int rc;
 
 	if (sscanf(p, "%d", &fid) != 1) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
 	if (!(fid < MAX_FILES)) {
-		kprintf("File id too big\n");
+		printf("File id too big\n");
 		return -1;
 	}
 
 	if (file_tab[fid].name[0] == 0) {
-		kprintf("File id empty\n");
+		printf("File id empty\n");
 		return -1;
 	}
 
@@ -587,17 +587,17 @@ static int file_read(const char *p)
 	size_t rb;
 
 	if (sscanf(p, "%d %d %d %d", &fid, &d, &len, &d) != 4) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
 	if (!(fid < MAX_FILES)) {
-		kprintf("File id too big\n");
+		printf("File id too big\n");
 		return -1;
 	}
 
 	if (file_tab[fid].name[0] == 0) {
-		kprintf("File id empty\n");
+		printf("File id empty\n");
 		return -1;
 	}
 
@@ -611,12 +611,12 @@ static int file_read(const char *p)
 			break;
 
 		if (rb != d) {
-			kprintf("Read count error\n");
+			printf("Read count error\n");
 			return -1;
 		}
 
 		if (memcmp(read_buffer, write_buffer, d)) {
-			kprintf("Read compare error\n");
+			printf("Read compare error\n");
 			return -1;
 		}
 
@@ -636,17 +636,17 @@ static int file_write(const char *p)
 	size_t wb;
 
 	if (sscanf(p, "%d %d %d %d", &fid, &d, &len, &d) != 4) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
 	if (!(fid < MAX_FILES)) {
-		kprintf("File id too big\n");
+		printf("File id too big\n");
 		return -1;
 	}
 
 	if (file_tab[fid].name[0] == 0) {
-		kprintf("File id empty\n");
+		printf("File id empty\n");
 		return -1;
 	}
 
@@ -658,7 +658,7 @@ static int file_write(const char *p)
 			break;
 
 		if (wb != d) {
-			kprintf("Write count error\n");
+			printf("Write count error\n");
 			return -1;
 		}
 
@@ -675,17 +675,17 @@ static int file_seek(const char *p)
 	int origin;
 
 	if (sscanf(p, "%d %d %d", &fid, &off, &origin) != 3) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
 	if (!(fid < MAX_FILES)) {
-		kprintf("File id too big\n");
+		printf("File id too big\n");
 		return -1;
 	}
 
 	if (file_tab[fid].name[0] == 0) {
-		kprintf("File id empty\n");
+		printf("File id empty\n");
 		return -1;
 	}
 
@@ -698,22 +698,22 @@ static int file_tell(const char *p)
 	uint32_t exp_pos;
 
 	if (sscanf(p, "%d %u", &fid, &exp_pos) != 2) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
 	if (!(fid < MAX_FILES)) {
-		kprintf("File id too big\n");
+		printf("File id too big\n");
 		return -1;
 	}
 
 	if (file_tab[fid].name[0] == 0) {
-		kprintf("File id empty\n");
+		printf("File id empty\n");
 		return -1;
 	}
 
 	if (exp_pos != ext4_ftell(&file_tab[fid].fd)) {
-		kprintf("Expected filepos error\n");
+		printf("Expected filepos error\n");
 		return -1;
 	}
 
@@ -726,22 +726,22 @@ static int file_size(const char *p)
 	uint32_t exp_size;
 
 	if (sscanf(p, "%d %u", &fid, &exp_size) != 2) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
 	if (!(fid < MAX_FILES)) {
-		kprintf("File id too big\n");
+		printf("File id too big\n");
 		return -1;
 	}
 
 	if (file_tab[fid].name[0] == 0) {
-		kprintf("File id empty\n");
+		printf("File id empty\n");
 		return -1;
 	}
 
 	if (exp_size != ext4_fsize(&file_tab[fid].fd)) {
-		kprintf("Expected filesize error\n");
+		printf("Expected filesize error\n");
 		return -1;
 	}
 
@@ -753,7 +753,7 @@ static int dir_rm(const char *p)
 	char path[255];
 
 	if (sscanf(p, "%s", path) != 1) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
@@ -765,7 +765,7 @@ static int dir_mk(const char *p)
 	char path[255];
 
 	if (sscanf(p, "%s", path) != 1) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
@@ -779,12 +779,12 @@ static int dir_open(const char *p)
 	int rc;
 
 	if (sscanf(p, "%d %s", &did, path) != 2) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
 	if (!(did < MAX_DIRS)) {
-		kprintf("Dir id too big\n");
+		printf("Dir id too big\n");
 		return -1;
 	}
 
@@ -802,17 +802,17 @@ static int dir_close(const char *p)
 	int rc;
 
 	if (sscanf(p, "%d", &did) != 1) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
 	if (!(did < MAX_DIRS)) {
-		kprintf("Dir id too big\n");
+		printf("Dir id too big\n");
 		return -1;
 	}
 
 	if (dir_tab[did].name[0] == 0) {
-		kprintf("Dir id empty\n");
+		printf("Dir id empty\n");
 		return -1;
 	}
 
@@ -831,17 +831,17 @@ static int dir_entry_get(const char *p)
 	char name[256];
 
 	if (sscanf(p, "%d %d", &did, &exp) != 2) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
 	if (!(did < MAX_DIRS)) {
-		kprintf("Dir id too big\n");
+		printf("Dir id too big\n");
 		return -1;
 	}
 
 	if (dir_tab[did].name[0] == 0) {
-		kprintf("Dir id empty\n");
+		printf("Dir id empty\n");
 		return -1;
 	}
 
@@ -854,17 +854,17 @@ static int dir_entry_get(const char *p)
 		memcpy(name, d->name, d->name_length);
 		name[d->name_length] = 0;
 		if (verbose) {
-			kprintf("\t%s %s\n", entry_to_str(d->inode_type), name);
+			printf("\t%s %s\n", entry_to_str(d->inode_type), name);
 		}
 	}
 
 	if (idx < 2) {
-		kprintf("Minumum dir entry error\n");
+		printf("Minumum dir entry error\n");
 		return -1;
 	}
 
 	if ((idx - 2) != exp) {
-		kprintf("Expected dir entry error\n");
+		printf("Expected dir entry error\n");
 		return -1;
 	}
 
@@ -882,12 +882,12 @@ static int multi_fcreate(const char *p)
 	ext4_file fd;
 
 	if (sscanf(p, "%s %s %d", path, prefix, &cnt) != 3) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
 	for (i = 0; i < cnt; ++i) {
-		ksprintf(path1, "%s%s%d", path, prefix, i);
+		sprintf(path1, "%s%s%d", path, prefix, i);
 		rc = ext4_fopen(&fd, path1, "wb+");
 
 		if (rc != EOK)
@@ -909,12 +909,12 @@ static int multi_fwrite(const char *p)
 	ext4_file fd;
 
 	if (sscanf(p, "%s %s %d %d", path, prefix, &cnt, &ll) != 4) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
 	for (i = 0; i < cnt; ++i) {
-		ksprintf(path1, "%s%s%d", path, prefix, i);
+		sprintf(path1, "%s%s%d", path, prefix, i);
 		rc = ext4_fopen(&fd, path1, "rb+");
 
 		if (rc != EOK)
@@ -929,7 +929,7 @@ static int multi_fwrite(const char *p)
 				break;
 
 			if (wb != d) {
-				kprintf("Write count error\n");
+				printf("Write count error\n");
 				return -1;
 			}
 
@@ -952,12 +952,12 @@ static int multi_fread(const char *p)
 	ext4_file fd;
 
 	if (sscanf(p, "%s %s %d %d", path, prefix, &cnt, &ll) != 4) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
 	for (i = 0; i < cnt; ++i) {
-		ksprintf(path1, "%s%s%d", path, prefix, i);
+		sprintf(path1, "%s%s%d", path, prefix, i);
 		rc = ext4_fopen(&fd, path1, "rb+");
 
 		if (rc != EOK)
@@ -974,12 +974,12 @@ static int multi_fread(const char *p)
 				break;
 
 			if (rb != d) {
-				kprintf("Read count error\n");
+				printf("Read count error\n");
 				return -1;
 			}
 
 			if (memcmp(read_buffer, write_buffer, d)) {
-				kprintf("Read compare error\n");
+				printf("Read compare error\n");
 				return -1;
 			}
 
@@ -998,12 +998,12 @@ static int multi_fremove(const char *p)
 	int cnt, i, rc;
 
 	if (sscanf(p, "%s %s %d", path, prefix, &cnt) != 3) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
 	for (i = 0; i < cnt; ++i) {
-		ksprintf(path1, "%s%s%d", path, prefix, i);
+		sprintf(path1, "%s%s%d", path, prefix, i);
 		rc = ext4_fremove(path1);
 		if (rc != EOK)
 			break;
@@ -1020,12 +1020,12 @@ static int multi_dcreate(const char *p)
 	int cnt, i, rc;
 
 	if (sscanf(p, "%s %s %d", path, prefix, &cnt) != 3) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
 	for (i = 0; i < cnt; ++i) {
-		ksprintf(path1, "%s%s%d", path, prefix, i);
+		sprintf(path1, "%s%s%d", path, prefix, i);
 		rc = ext4_dir_mk(path1);
 		if (rc != EOK)
 			break;
@@ -1042,12 +1042,12 @@ static int multi_dremove(const char *p)
 	int cnt, i, rc;
 
 	if (sscanf(p, "%s %s %d", path, prefix, &cnt) != 3) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
 	for (i = 0; i < cnt; ++i) {
-		ksprintf(path1, "%s%s%d", path, prefix, i);
+		sprintf(path1, "%s%s%d", path, prefix, i);
 		rc = ext4_dir_rm(path1);
 		if (rc != EOK)
 			break;
@@ -1063,7 +1063,7 @@ static int stats_save(const char *p)
 	char path[256];
 
 	if (sscanf(p, "%s", path) != 1) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
@@ -1078,7 +1078,7 @@ static int stats_check(const char *p)
 	struct ext4_mount_stats actual_stats;
 
 	if (sscanf(p, "%s", path) != 1) {
-		kprintf("Param list error\n");
+		printf("Param list error\n");
 		return -1;
 	}
 
@@ -1090,42 +1090,42 @@ static int stats_check(const char *p)
 	if (memcmp(&saved_stats, &actual_stats,
 		   sizeof(struct ext4_mount_stats))) {
 		if (verbose) {
-			kprintf("\tMount point stats error:\n");
-			kprintf("\tsaved_stats:\n");
-			kprintf("\tinodes_count = %" PRIu32"\n",
+			printf("\tMount point stats error:\n");
+			printf("\tsaved_stats:\n");
+			printf("\tinodes_count = %" PRIu32"\n",
 			       saved_stats.inodes_count);
-			kprintf("\tfree_inodes_count = %" PRIu32"\n",
+			printf("\tfree_inodes_count = %" PRIu32"\n",
 			       saved_stats.free_inodes_count);
-			kprintf("\tblocks_count = %" PRIu64"\n",
+			printf("\tblocks_count = %" PRIu64"\n",
 			       saved_stats.blocks_count);
-			kprintf("\tfree_blocks_count = %" PRIu64"\n",
+			printf("\tfree_blocks_count = %" PRIu64"\n",
 			       saved_stats.free_blocks_count);
-			kprintf("\tblock_size = %" PRIu32"\n",
+			printf("\tblock_size = %" PRIu32"\n",
 					saved_stats.block_size);
-			kprintf("\tblock_group_count = %" PRIu32"\n",
+			printf("\tblock_group_count = %" PRIu32"\n",
 			       saved_stats.block_group_count);
-			kprintf("\tblocks_per_group = %" PRIu32"\n",
+			printf("\tblocks_per_group = %" PRIu32"\n",
 			       saved_stats.blocks_per_group);
-			kprintf("\tinodes_per_group = %" PRIu32"\n",
+			printf("\tinodes_per_group = %" PRIu32"\n",
 			       saved_stats.inodes_per_group);
-			kprintf("\tvolume_name = %s\n", saved_stats.volume_name);
-			kprintf("\tactual_stats:\n");
-			kprintf("\tinodes_count = %" PRIu32"\n",
+			printf("\tvolume_name = %s\n", saved_stats.volume_name);
+			printf("\tactual_stats:\n");
+			printf("\tinodes_count = %" PRIu32"\n",
 			       actual_stats.inodes_count);
-			kprintf("\tfree_inodes_count = %" PRIu32"\n",
+			printf("\tfree_inodes_count = %" PRIu32"\n",
 			       actual_stats.free_inodes_count);
-			kprintf("\tblocks_count = %" PRIu64"\n",
+			printf("\tblocks_count = %" PRIu64"\n",
 			       actual_stats.blocks_count);
-			kprintf("\tfree_blocks_count = %" PRIu64"\n",
+			printf("\tfree_blocks_count = %" PRIu64"\n",
 			       actual_stats.free_blocks_count);
-			kprintf("\tblock_size = %d\n", actual_stats.block_size);
-			kprintf("\tblock_group_count = %" PRIu32"\n",
+			printf("\tblock_size = %d\n", actual_stats.block_size);
+			printf("\tblock_group_count = %" PRIu32"\n",
 			       actual_stats.block_group_count);
-			kprintf("\tblocks_per_group = %" PRIu32"\n",
+			printf("\tblocks_per_group = %" PRIu32"\n",
 			       actual_stats.blocks_per_group);
-			kprintf("\tinodes_per_group = %" PRIu32"\n",
+			printf("\tinodes_per_group = %" PRIu32"\n",
 			       actual_stats.inodes_per_group);
-			kprintf("\tvolume_name = %s\n",
+			printf("\tvolume_name = %s\n",
 			       actual_stats.volume_name);
 		}
 		return -1;

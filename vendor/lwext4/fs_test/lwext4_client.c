@@ -74,14 +74,14 @@ static int client_connect(void)
 	struct sockaddr_in serv_addr;
 
 	if (winsock_init() < 0) {
-		kprintf("winsock_init error\n");
+		printf("winsock_init error\n");
 		exit(-1);
 	}
 
 	memset(&serv_addr, '0', sizeof(serv_addr));
 	fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (fd < 0) {
-		kprintf("socket() error: %s\n", strerror(errno));
+		printf("socket() error: %s\n", strerror(errno));
 		exit(-1);
 	}
 
@@ -89,12 +89,12 @@ static int client_connect(void)
 	serv_addr.sin_port = htons(connection_port);
 
 	if (!inet_pton(AF_INET, server_addr, &serv_addr.sin_addr)) {
-		kprintf("inet_pton() error\n");
+		printf("inet_pton() error\n");
 		exit(-1);
 	}
 
 	if (connect(fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr))) {
-		kprintf("connect() error: %s\n", strerror(errno));
+		printf("connect() error: %s\n", strerror(errno));
 		exit(-1);
 	}
 
@@ -131,7 +131,7 @@ static bool parse_opt(int argc, char **argv)
 			exit(0);
 			break;
 		default:
-			kprintf("%s", usage);
+			printf("%s", usage);
 			return false;
 		}
 	}
@@ -152,19 +152,19 @@ int main(int argc, char *argv[])
 
 	n = send(sockfd, op_code, strlen(op_code), 0);
 	if (n < 0) {
-		kprintf("\tWrite error: %s fd = %d\n", strerror(errno), sockfd);
+		printf("\tWrite error: %s fd = %d\n", strerror(errno), sockfd);
 		return -1;
 	}
 
 	n = recv(sockfd, (void *)&rc, sizeof(rc), 0);
 	if (n < 0) {
-		kprintf("\tWrite error: %s fd = %d\n", strerror(errno), sockfd);
+		printf("\tWrite error: %s fd = %d\n", strerror(errno), sockfd);
 		return -1;
 	}
 
-	kprintf("rc: %d %s\n", rc, strerror(rc));
+	printf("rc: %d %s\n", rc, strerror(rc));
 	if (rc)
-		kprintf("\t%s\n", op_code);
+		printf("\t%s\n", op_code);
 
 	winsock_fini();
 	return rc;
