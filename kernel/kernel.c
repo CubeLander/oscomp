@@ -13,6 +13,10 @@
 #include <kernel/util.h>
 #include <kernel/vfs.h>
 
+#define __boot_code __attribute__((section(".boot_text")));
+#define __boot_data __attribute__((section(".boot_data")));	
+
+
 // 分配 (NCPU + 1) 个保护页 + NCPU 个实际栈页
 __attribute__((aligned(PAGE_SIZE))) char stack0[PAGE_SIZE * (NCPU + 1 + NCPU)];
 
@@ -168,7 +172,7 @@ void boot_trap_setup(void){
 volatile static int32 sig = 1;
 volatile static int counter = 0;
 
-void s_start(uintptr_t hartid, uintptr_t dtb) {
+void early_boot(uintptr_t hartid, uintptr_t dtb) {
 	write_tp(hartid);
 	boot_trap_setup();
 	// 最重要！先把中断服务程序挂上去，不然崩溃都不知道怎么死的。

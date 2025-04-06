@@ -28,6 +28,8 @@ _entry:
     # 此时sp指向栈页的末尾
     
     # 接下来跳转到s_start
+	call early_boot
+	
     call s_start
 spin:
         j spin

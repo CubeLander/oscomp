@@ -81,7 +81,8 @@
 		"fcntl.h": "c",
 		"print.h": "c",
 		"poll.h": "c",
-		"stddef.h": "c"
+		"stddef.h": "c",
+		"terminal.h": "c"
 	},
     "C_Cpp.vcFormat.newLine.closeBraceSameLine.emptyFunction": true,
     "C_Cpp.vcFormat.newLine.closeBraceSameLine.emptyType": true,

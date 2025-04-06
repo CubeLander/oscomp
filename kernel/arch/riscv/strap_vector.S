@@ -24,10 +24,10 @@ smode_trap_vector:
 	# 首先关中断。 
 	csrrc t0, sstatus, SSTATUS_SIE
     # 首先保存关键CSR到一些临时寄存器
-    csrr     s1, sepc    # 保存sepc到s1
-    csrr     s2, scause  # 保存scause到s2
-    csrr     s3, stval   # 保存stval到s3
-    csrr     s4, sstatus # 保存sstatus到s4
+    ; csrr     s1, sepc    # 保存sepc到s1
+    ; csrr     s2, scause  # 保存scause到s2
+    ; csrr     s3, stval   # 保存stval到s3
+    ; csrr     s4, sstatus # 保存sstatus到s4
     
     # csrrw    a0, sscratch, a0
 
@@ -38,11 +38,11 @@ smode_trap_vector:
 
 
     # 检查 t6(a0) 是否在有效地址范围内
-    li        t0, 0x80000000         # 假设这是内核地址空间的下界
-    bltu      a0, t0, stack_error    # 如果 a0 < 下界，跳转到错误处理
-    li        t0, 0x88000000         # 假设这是内核地址空间的上界
-    bgeu      a0, t0, stack_error    # 如果 a0 >= 上界，跳转到错误处理
-		# t0-t6都是临时寄存器，操作系统或应用程序都不需要保护其中的内容。
+    ; li        t0, 0x80000000         # 假设这是内核地址空间的下界
+    ; bltu      a0, t0, stack_error    # 如果 a0 < 下界，跳转到错误处理
+    ; li        t0, 0x88000000         # 假设这是内核地址空间的上界
+    ; bgeu      a0, t0, stack_error    # 如果 a0 >= 上界，跳转到错误处理
+	; 	# t0-t6都是临时寄存器，操作系统或应用程序都不需要保护其中的内容。
     # 这个t6寄存器在用户程序中用不上，所以可以用来做汇编的临时变量，作为保存所有寄存器的内存地址。
     addi t6, a0 , 0
 
