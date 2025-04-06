@@ -1,17 +1,19 @@
-# 修改: 切换到 RISC-V Linux GNU 交叉编译工具链
-set(CMAKE_SYSTEM_NAME Linux)
-set(CMAKE_SYSTEM_PROCESSOR riscv64)
-set(CMAKE_C_COMPILER riscv64-linux-gnu-gcc)
-set(CMAKE_CXX_COMPILER riscv64-linux-gnu-g++)
-set(CMAKE_ASM_COMPILER riscv64-linux-gnu-gcc)
 
-# 设置编译标志，使其与内核编译标志兼容
-# 修改 CMAKE_C_FLAGS，添加更多限制标准库的标志
-set(CMAKE_C_FLAGS "-Wall -fno-builtin -nostdlib -nodefaultlibs -nostartfiles -mcmodel=medany -g -Og -std=gnu99 -fno-delete-null-pointer-checks")
 
 # 项目声明
 project(lwext4 C)
 cmake_minimum_required(VERSION 3.4)
+# 修改: 切换到 RISC-V Linux GNU 交叉编译工具链
+# 设置 RISC-V 交叉编译工具链
+set(CMAKE_SYSTEM_NAME Generic)
+set(CMAKE_SYSTEM_PROCESSOR riscv64)
+set(CMAKE_C_COMPILER riscv64-unknown-elf-gcc)
+set(CMAKE_CXX_COMPILER riscv64-unknown-elf-g++)
+set(CMAKE_ASM_COMPILER riscv64-unknown-elf-gcc)
+
+# 设置编译标志，使其与内核编译标志兼容
+# 修改 CMAKE_C_FLAGS，添加更多限制标准库的标志
+set(CMAKE_C_FLAGS "-Wall -fno-builtin -nostdlib -nodefaultlibs -nostartfiles -mcmodel=medany -g -Og -std=gnu99 -fno-delete-null-pointer-checks")
 
 # 设置构建类型为静态库
 set(BUILD_SHARED_LIBS OFF)
